@@ -1,3 +1,6 @@
+"""
+AmazonSimpleProductAPI
+"""
 # coding=utf-8
 # !/usr/bin/python
 #
@@ -15,109 +18,129 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from decimal import Decimal
+import os
+
 from lxml import etree, objectify
 from lxml.etree import Element
 
 try:
-    # noinspection PyUnresolvedReferences
-   from typing import Any, Iterable, Optional, Dict, List, Tuple, AnyStr, Set
-except ImportError:
-    pass
+    from .bottlenose import *
+except:
+    execfile(str('bottlenose.py'))
 
-from calibre_plugins.AmazonProductAdvertisingAPI.bottlenose.bottlenose import BottlenoseAmazon, BottlenoseAmazonCall
 
+# try:
+#     # noinspection PyUnresolvedReferences
+#     from typing import Any, Iterable, Optional, Dict, List, Tuple, unicode, Set, Text
+# except ImportError:
+#     pass
 
 class AmazonException(Exception):
     """Base Class for BottlenoseAmazon Api Exceptions.
     """
-    pass
+
+    def __init__(self, code=None, msg=None):
+        self.code = code
+        self.msg = msg
 
 
 class CartException(AmazonException):
     """Cart related Exception
     """
-    pass
+
+    def __init__(self, code=None, msg=None):
+        super(CartException, self).__init__(code, msg)
 
 
 class CartInfoMismatchException(CartException):
     """HMAC, CartId and AssociateTag did not match
     """
-    pass
+
+    def __init__(self, code=None, msg=None):
+        super(CartInfoMismatchException, self).__init__(code, msg)
 
 
 class AsinNotFoundException(AmazonException):
     """ASIN Not Found Exception.
     """
-    pass
+
+    def __init__(self, code=None, msg=None):
+        super(AsinNotFoundException, self).__init__(code, msg)
 
 
 class LookupException(AmazonException):
     """Lookup Exception.
     """
-    pass
+
+    def __init__(self, code, msg):
+        super(LookupException, self).__init__(code, msg)
 
 
 class SearchException(AmazonException):
     """Search Exception.
     """
-    pass
+
+    def __init__(self, code, msg):
+        super(SearchException, self).__init__(code, msg)
 
 
 class NoMorePagesException(SearchException):
     """No More Pages Exception.
     """
-    pass
+
+    def __init__(self, code=None, msg=None):
+        super(NoMorePagesException, self).__init__(code, msg)
 
 
 class RequestThrottledException(AmazonException):
     """Exception for when BottlenoseAmazon has throttled a request, per:
     http://docs.aws.amazon.com/AWSECommerceService/latest/DG/ErrorNumbers.html
     """
-    pass
+
+    def __init__(self, code=None, msg=None):
+        super(RequestThrottledException, self).__init__(code, msg)
 
 
 class SimilartyLookupException(AmazonException):
     """Similarty Lookup Exception.
     """
-    pass
+
+    def __init__(self, code=None, msg=None):
+        super(SimilartyLookupException, self).__init__(code, msg)
 
 
 class BrowseNodeLookupException(AmazonException):
     """Browse Node Lookup Exception.
     """
-    pass
+
+    def __init__(self, code=None, msg=None):
+        super(BrowseNodeLookupException, self).__init__(code, msg)
 
 
 class AmazonAPI(object):
+    """
+    Used to call Amazon API
+    """
     # https://kdp.amazon.com/help?topicId=A1CT8LK6UW2FXJ
-    AMAZON_DOMAINS = {
-        'CA': 'ca',
-        'DE': 'de',
-        'ES': 'es',
-        'FR': 'fr',
-        'IN': 'in',
-        'IT': 'it',
-        'JP': 'co.jp',
-        'UK': 'co.uk',
-        'US': 'com',
-        'CN': 'cn'
-    }
+    AMAZON_DOMAINS = {u'CA': u'ca', u'DE': u'de', u'ES': u'es', u'FR': u'fr', u'IN': u'in', u'IT': u'it',
+                      u'JP': u'co.jp', u'UK': u'co.uk', u'US': u'com', u'CN': u'cn'}
 
-    AMAZON_ASSOCIATES_BASE_URL = 'http://www.amazon.{domain}/dp/'
+    AMAZON_ASSOCIATES_BASE_URL = u'http://www.amazon.{domain}/dp/'
 
     # noinspection PyTypeChecker
-    def __init__(self, aws_key, aws_secret, aws_associate_tag, **kwargs):
-        # type: (AnyStr, AnyStr, AnyStr, Dict[Any]) -> AmazonAPI
+    def __init__(self, aws_key=os.environ.get(u'AWS_ACCESS_KEY_ID'),
+                 aws_secret=os.environ.get(u'AWS_SECRET_ACCESS_KEY'),
+                 aws_associate_tag=os.environ.get(u'AWS_ASSOCIATE_TAG'), MaxQPS=None, Timeout=None, CacheReader=None,
+                 CacheWriter=None,
+                 **kwargs):
+        # type: (unicode, unicode, unicode, float, int, object, object, dict) -> AmazonAPI
         """Initialize an BottlenoseAmazon API Proxy.
 
         kwargs values are passed directly to Bottlenose. Check the Bottlenose
         API for valid values (some are provided below).
-        For legacy support, the older 'region' value is still supported.
-        Code should be updated to use the Bottlenose 'Region' value
-        instead.
 
         :type kwargs: Dict[Any]
         :param aws_key:
@@ -128,12 +151,6 @@ class AmazonAPI(object):
             A string representing an AWS associate tag.
 
         Important Bottlenose arguments:
-        :param Region:
-            ccTLD you want to search for products on (e.g. 'UK'
-            for amazon.co.uk).
-            See keys of bottlenose.api.AMAZON_SERVICE_DOMAINS for options, which were
-            CA, CN, DE, ES, FR, IT, JP, UK, US at the time of writing.
-            Must be uppercase. Default is 'US' (amazon.com).
         :param MaxQPS:
             Optional maximum queries per second. If we've made an API call
             on this object more recently that 1/MaxQPS, we'll wait
@@ -160,136 +177,53 @@ class AmazonAPI(object):
             CacheReader, and the (unparsed) API response.
             Defaults to None.
         """
-        # support older style calls
-        if 'region' in kwargs:
-            kwargs['Region'] = kwargs['region']
-            del kwargs['region']
-
-        if 'Version' not in kwargs:
-            kwargs['Version'] = '2013-08-01'
-
+        kwargs.update(
+            {u'MaxQPS': MaxQPS, u'Timeout': Timeout, u'CacheReader': CacheReader, u'CacheWriter': CacheWriter})
         self.api = BottlenoseAmazon(AWSAccessKeyId=aws_key, AWSSecretAccessKey=aws_secret,
-                 AssociateTag=aws_associate_tag, **kwargs)
-        self.aws_associate_tag = aws_associate_tag
-        self.region = kwargs.get('region', 'US')
+                                    AssociateTag=aws_associate_tag, **kwargs)
 
-    def lookup(self, ResponseGroup="Large", **kwargs):
-        # type: (AnyStr, Optional[Any]) -> Iterable[AmazonProduct]
+    def item_lookup(self, ItemId, IdType=u'ASIN', ResponseGroup=u'Large', **kwargs):
+        # type: (unicode, unicode, unicode, dict) -> list(AmazonProduct)
         """Lookup an BottlenoseAmazon Product.
-        :param ResponseGroup:API response group
-        :param kwargs:
-        :return: a list of  :class:`~.AmazonProduct` instances if multiple
-            items where returned.
+        :param ItemId: A single ItemId
+        :param IdType: One of ASIN, SKU, EAN, UPC or ISBN
+        :param ResponseGroup: Response group
+        :return:List[AmazonProduct]:List of Amazon Products
         """
-        response = self.api.ItemLookup(ResponseGroup=ResponseGroup, **kwargs)
+        kwargs.update({u'ItemId': unicode(ItemId), u'IdType': unicode(IdType), u'ResponseGroup': unicode(ResponseGroup),
+                       u'Operation': u'ItemLookup'})
+        response = self.api.call_api(**kwargs)
         root = objectify.fromstring(response)
-        if root.Items.Request.IsValid == 'False':
+        if root.Items.Request.IsValid == u'False':
             code = root.Items.Request.Errors.Error.Code
             msg = root.Items.Request.Errors.Error.Message
-            raise LookupException("BottlenoseAmazon Product Lookup Error: '{0}', '{1}'".format(code, msg))
-        if not hasattr(root.Items, 'Item'):
-            raise AsinNotFoundException("ASIN(s) not found: '{0}'".format(etree.tostring(root, pretty_print=True)))
-        return [AmazonProduct(item=item, aws_associate_tag=self.aws_associate_tag, api=self.api,
-                              region=self.region) for item in getattr(root.Items, 'Item', [])]
+            raise LookupException(code, msg)
+        if not hasattr(root.Items, u'Item'):
+            raise AsinNotFoundException(code=20, msg=u'ASIN(s) not found: \'{0}\''.format(
+                etree.tostring(root, pretty_print=True)))
+        return [AmazonProduct(item) for item in root.Items.Item]
 
-    def lookup_bulk(self, ResponseGroup="Large", **kwargs):
-        # type: (AnyStr, Optional[Any]) -> List[AmazonProduct]
-        """Lookup BottlenoseAmazon Products in bulk.
+    def item_search(self, ResponseGroup=u'Large', **kwargs):
+        # type: (unicode, dict) -> list[AmazonProduct]
+        """Seach
 
-        Returns all products matching requested ASINs, ignoring invalid
-        entries.
-
-        :return: Iterable[AmazonProduct]: A list of  :class:`~.AmazonProduct`instances.
+        :param ResponseGroup:
+        :param kwargs:
+        :return:
         """
-        response = self.api.ItemLookup(ResponseGroup=ResponseGroup, **kwargs)
+        kwargs.update({u'Operation': u'ItemSearch', u'ResponseGroup': unicode(ResponseGroup)})
+        response = self.api.call_api(**kwargs)
         root = objectify.fromstring(response)
-        if not hasattr(root.Items, 'Item'):
-            return []
-        return list(
-            AmazonProduct(item=item, aws_associate_tag=self.aws_associate_tag, api=self.api, region=self.region)
-            for item in root.Items.Item
-        )
-
-    def similarity_lookup(self, ResponseGroup="Large", **kwargs):
-        # type: (AnyStr, Dict[Any]) -> List[AmazonProduct]
-        """Similarty Lookup.
-
-        Returns up to ten products that are similar to all items
-        specified in the request.
-
-        Example:
-            api.similarity_lookup(ItemId='B002L3XLBO,B000LQTBKI')
-        """
-        response = self.api.SimilarityLookup(
-            ResponseGroup=ResponseGroup, **kwargs)
-        root = objectify.fromstring(response)
-        if root.Items.Request.IsValid == 'False':
+        if root.Items.Request.IsValid == u'False':
             code = root.Items.Request.Errors.Error.Code
             msg = root.Items.Request.Errors.Error.Message
-            raise SimilartyLookupException(
-                "BottlenoseAmazon Similarty Lookup Error: '{0}', '{1}'".format(
-                    code, msg))
-        return [
-            AmazonProduct(item=item, aws_associate_tag=self.aws_associate_tag,
-                api=self.api, region=self.region)
-            for item in getattr(root.Items, 'Item', [])
-        ]
-
-    def browse_node_lookup(self, ResponseGroup="BrowseNodeInfo", **kwargs):
-        # type: (AnyStr, Optional[Any]) -> List[AmazonBrowseNode]
-        """Browse Node Lookup.
-
-        Returns the specified browse node's name, children, and ancestors.
-        Example:
-            api.browse_node_lookup(BrowseNodeId='163357')
-        """
-        response = self.api.BrowseNodeLookup(
-            ResponseGroup=ResponseGroup, **kwargs)
-        root = objectify.fromstring(response)
-        if root.BrowseNodes.Request.IsValid == 'False':
-            code = root.BrowseNodes.Request.Errors.Error.Code
-            msg = root.BrowseNodes.Request.Errors.Error.Message
-            raise BrowseNodeLookupException(
-                "BottlenoseAmazon BrowseNode Lookup Error: '{0}', '{1}'".format(
-                    code, msg))
-        return [AmazonBrowseNode(node.BrowseNode) for node in root.BrowseNodes]
-
-    def search(self, timeout=30, **kwargs):
-        # type: (int, Optional[Any]) -> AmazonSearch
-        """Search.
-
-        :param timeout:int:timeout
-        :return: AmazonSearch
-        :param kwargs:
-        :type kwargs: Text
-        :rtype: AmazonSearch
-        """
-        region = kwargs.get('region', self.region)
-        kwargs.update({'region': region})
-        return AmazonSearch(api=self.api,aws_associate_tag=self.aws_associate_tag,timeout=timeout**kwargs)
-
-    def search_n(self, n, **kwargs):
-        # type: (int, Optional[Any]) -> List[AmazonProduct]
-        """Search and return first N results..
-
-        :param kwargs: AnyStr: parameters
-        :param n: Integer: An integer specifying the number of results to return.
-        :return: List[AmazonProduct]: A list of :class:`~.AmazonProduct`.
-        """
-        region = kwargs.get('region', self.region)
-        kwargs.update({'region': region})
+            raise SearchException(code, msg)
+        if not hasattr(root.Items, u'Item'):
+            raise SearchException(code=1, msg=u'No item found in tree')
+        return [AmazonProduct(item) for item in root.Items.Item]
 
 
-        items = AmazonSearch(api=self.api, aws_associate_tag=self.aws_associate_tag, **kwargs)
-        products=[]
-        for i in items:
-            products.append(i)
-            if len(products) >= n:
-                break
-        
-        return products
-
-class LXMLWrapper(object):
+class _LXMLWrapper(object):
     def __init__(self, parsed_response):
         self.parsed_response = parsed_response
 
@@ -310,11 +244,11 @@ class LXMLWrapper(object):
         :param root:
             Lxml element.
         :param path:
-            String path (i.e. 'Items.Item.Offers.Offer').
+            String path (i.e. u'Items.Item.Offers.Offer').
         :return:
             Element or None.
         """
-        elements = path.split('.')
+        elements = path.split(u'.')
         parent = root if root is not None else self.parsed_response
         for element in elements[:-1]:
             parent = getattr(parent, element, None)
@@ -323,14 +257,14 @@ class LXMLWrapper(object):
         return getattr(parent, elements[-1], None)
 
     def _safe_get_element_text(self, path, root=None):
-        # type: (Element, [AnyStr or None]) -> AnyStr or None
+        # type: (Element, [unicode or None]) -> unicode or None
         """Safe get element text.
 
         Get element as string or None,
         :rtype: Text or None
         :param root: Lxml element.
-        :param path: String path (i.e. 'Items.Item.Offers.Offer').
-        :return: AnyStr or None
+        :param path: String path (i.e. u'Items.Item.Offers.Offer').
+        :return: unicode or None
         """
         element = self._safe_get_element(path, root)
         if element is not None:
@@ -345,7 +279,7 @@ class LXMLWrapper(object):
         :param root:
             Lxml element.
         :param path:
-            String path (i.e. 'Items.Item.Offers.Offer').
+            String path (i.e. u'Items.Item.Offers.Offer').
         :return:
             datetime.date or None.
         """
@@ -353,7 +287,7 @@ class LXMLWrapper(object):
         if value is not None:
             try:
                 from datetime import datetime
-                value = datetime.strptime(value, '%Y-%m-%d')
+                value = datetime.strptime(value, u'%Y-%m-%d')
                 if value:
                     value = value.date()
             except ValueError:
@@ -362,14 +296,14 @@ class LXMLWrapper(object):
         return value
 
 
-class AmazonSearch(object):
+class _AmazonSearch(object):
     """ BottlenoseAmazon Search.
 
     A class providing an iterable over amazon search results.
     """
 
-    def __init__(self, api, aws_associate_tag, **kwargs):
-        # type: (BottlenoseAmazonCall, Optional[Any]) -> AmazonSearch
+    def __init__(self, api, **kwargs):
+        # type: (AmazonAPI, dict) -> None
         """Initialise
 
         Initialise a search
@@ -383,7 +317,6 @@ class AmazonSearch(object):
         self.current_page = 0
         self.is_last_page = False
         self.api = api
-        self.aws_associate_tag = aws_associate_tag
 
     def __iter__(self):
         # type: () -> AmazonProduct
@@ -396,8 +329,8 @@ class AmazonSearch(object):
             Yields a :class:`~.AmazonProduct` for each result item.
         """
         for page in self.iterate_pages():
-            for item in getattr(page.Items, 'Item', []):
-                yield AmazonProduct(item=item,aws_associate_tag=self.aws_associate_tag, api=self.api, **self.kwargs)
+            for item in getattr(page.Items, u'Item', []):
+                yield AmazonProduct(item=item)
 
     def iterate_pages(self):
         """Iterate Pages.
@@ -415,7 +348,7 @@ class AmazonSearch(object):
         except NoMorePagesException:
             pass
 
-    def _query(self, ResponseGroup="Large", **kwargs):
+    def _query(self, ResponseGroup=u'Large', **kwargs):
         """Query.
 
         Query BottlenoseAmazon search and check for errors.
@@ -423,27 +356,24 @@ class AmazonSearch(object):
         :return:
             An lxml root element.
         """
-        response = self.api.ItemSearch(ResponseGroup=ResponseGroup, **kwargs)
+        response = self.api.item_search(ResponseGroup=ResponseGroup, **kwargs)
         root = objectify.fromstring(response)
-        if (hasattr(root.Items.Request, 'Errors') and
-                not hasattr(root.Items, 'Item')):
+        if hasattr(root.Items.Request, u'Errors') and not hasattr(root.Items, u'Item'):
             code = root.Items.Request.Errors.Error.Code
             msg = root.Items.Request.Errors.Error.Message
-            if code == 'AWS.ParameterOutOfRange':
-                raise NoMorePagesException(msg)
-            elif code == 'HTTP Error 503':
-                raise RequestThrottledException(
-                    "Request Throttled Error: '{0}', '{1}'".format(code, msg))
+            if code == u'AWS.ParameterOutOfRange':
+                raise NoMorePagesException(code, msg)
+            elif code == u'HTTP Error 503':
+                raise RequestThrottledException(code, msg)
             else:
-                raise SearchException(
-                    "BottlenoseAmazon Search Error: '{0}', '{1}'".format(code, msg))
-        if hasattr(root.Items, 'TotalPages'):
+                raise SearchException(code, msg)
+        if hasattr(root.Items, u'TotalPages'):
             if root.Items.TotalPages == self.current_page:
                 self.is_last_page = True
         return root
 
 
-class AmazonBrowseNode(LXMLWrapper):
+class _AmazonBrowseNode(_LXMLWrapper):
     @property
     def id(self):
         """Browse Node ID.
@@ -453,8 +383,8 @@ class AmazonBrowseNode(LXMLWrapper):
         :return:
             ID (integer)
         """
-        if hasattr(self.parsed_response, 'BrowseNodeId'):
-            return int(self.parsed_response['BrowseNodeId'])
+        if hasattr(self.parsed_response, u'BrowseNodeId'):
+            return int(self.parsed_response[u'BrowseNodeId'])
         return None
 
     @property
@@ -464,25 +394,25 @@ class AmazonBrowseNode(LXMLWrapper):
         :return:
             Name (string)
         """
-        return getattr(self.parsed_response, 'Name', None)
+        return getattr(self.parsed_response, u'Name', None)
 
     @property
     def is_category_root(self):
         """Boolean value that specifies if the browse node is at the top of
         the browse node tree.
         """
-        return getattr(self.parsed_response, 'IsCategoryRoot', False)
+        return getattr(self.parsed_response, u'IsCategoryRoot', False)
 
     @property
     def ancestor(self):
         """This browse node's immediate ancestor in the browse node tree.
 
         :return:
-            The ancestor as an :class:`~.AmazonBrowseNode`, or None.
+            The ancestor as an :class:`~._AmazonBrowseNode`, or None.
         """
-        ancestors = getattr(self.parsed_response, 'Ancestors', None)
-        if hasattr(ancestors, 'BrowseNode'):
-            return AmazonBrowseNode(ancestors['BrowseNode'])
+        ancestors = getattr(self.parsed_response, u'Ancestors', None)
+        if hasattr(ancestors, u'BrowseNode'):
+            return _AmazonBrowseNode(ancestors[u'BrowseNode'])
         return None
 
     @property
@@ -490,7 +420,7 @@ class AmazonBrowseNode(LXMLWrapper):
         """A list of this browse node's ancestors in the browse node tree.
 
         :return:
-            List of :class:`~.AmazonBrowseNode` objects.
+            List of :class:`~._AmazonBrowseNode` objects.
         """
         ancestors = []
         node = self.ancestor
@@ -507,32 +437,19 @@ class AmazonBrowseNode(LXMLWrapper):
     A list of this browse node's children in the browse node tree.
     """
         children = []
-        child_nodes = getattr(self.parsed_response, 'Children')
-        for child in getattr(child_nodes, 'BrowseNode', []):
-            children.append(AmazonBrowseNode(child))
+        child_nodes = getattr(self.parsed_response, u'Children')
+        for child in getattr(child_nodes, u'BrowseNode', []):
+            children.append(_AmazonBrowseNode(child))
         return children
 
 
-class AmazonProduct(LXMLWrapper):
+class AmazonProduct(_LXMLWrapper):
     """A wrapper class for an BottlenoseAmazon product.
     """
 
     # noinspection PyUnusedLocal
-    def __init__(self, item, aws_associate_tag, api, region='US', MaxQPS=0.9, **kwargs):
-        # type: (Element, AnyStr, BottlenoseAmazonCall, Optional[AnyStr], Optional[Any]) -> ([AmazonProduct])
-        """Initialize an BottlenoseAmazon Product Proxy.
-
-        :type kwargs: object
-        :param aws_associate_tag: AnyStr: Your associate tag
-        :param api: BottlenoseAmazon: BottlenoseAmazon api
-        :param item: Element: Lxml Item element.
-        """
+    def __init__(self, item):
         super(AmazonProduct, self).__init__(item)
-        self.aws_associate_tag = aws_associate_tag
-        self.api = api
-        self.parent = None
-        self.MaxQPS = MaxQPS
-        self.region = region
 
     def __str__(self):
         """Return redable representation.
@@ -548,46 +465,46 @@ class AmazonProduct(LXMLWrapper):
         """
         return self.title
 
-    @property
-    def price_and_currency(self):
-        # type: () -> Tuple[Optional[float],Optional[AnyStr]]
-        """Get Offer Price and Currency.
-
-        Return price according to the following process:
-
-        * If product has a sale return Sales Price, otherwise,
-        * Return Price, otherwise,
-        * Return lowest offer price, otherwise,
-        * Return None.
-
-        :return:
-            A tuple containing:
-
-                1. Decimal representation of price.
-                2. ISO Currency code (string).
-        """
-        price = self._safe_get_element_text(
-            'Offers.Offer.OfferListing.SalePrice.Amount')
-        if price:
-            currency = self._safe_get_element_text(
-                'Offers.Offer.OfferListing.SalePrice.CurrencyCode')
-        else:
-            price = self._safe_get_element_text(
-                'Offers.Offer.OfferListing.Price.Amount')
-            if price:
-                currency = self._safe_get_element_text(
-                    'Offers.Offer.OfferListing.Price.CurrencyCode')
-            else:
-                price = self._safe_get_element_text(
-                    'OfferSummary.LowestNewPrice.Amount')
-                currency = self._safe_get_element_text(
-                    'OfferSummary.LowestNewPrice.CurrencyCode')
-        if price:
-            dprice = Decimal(
-                price) / 100 if 'JP' not in self.region else Decimal(price)
-            return dprice, currency
-        else:
-            return None, None
+    # @property
+    # def price_and_currency(self):
+    #     # type: () -> Tuple[Optional[float],Optional[unicode]]
+    #     """Get Offer Price and Currency.
+    #
+    #     Return price according to the following process:
+    #
+    #     * If product has a sale return Sales Price, otherwise,
+    #     * Return Price, otherwise,
+    #     * Return lowest offer price, otherwise,
+    #     * Return None.
+    #
+    #     :return:
+    #         A tuple containing:
+    #
+    #             1. Decimal representation of price.
+    #             2. ISO Currency code (string).
+    #     """
+    #     price = self._safe_get_element_text(
+    #         u'Offers.Offer.OfferListing.SalePrice.Amount')
+    #     if price:
+    #         currency = self._safe_get_element_text(
+    #             u'Offers.Offer.OfferListing.SalePrice.CurrencyCode')
+    #     else:
+    #         price = self._safe_get_element_text(
+    #             u'Offers.Offer.OfferListing.Price.Amount')
+    #         if price:
+    #             currency = self._safe_get_element_text(
+    #                 u'Offers.Offer.OfferListing.Price.CurrencyCode')
+    #         else:
+    #             price = self._safe_get_element_text(
+    #                 u'OfferSummary.LowestNewPrice.Amount')
+    #             currency = self._safe_get_element_text(
+    #                 u'OfferSummary.LowestNewPrice.CurrencyCode')
+    #     if price:
+    #         dprice = Decimal(
+    #             price) / 100 if u'JP' not in self.region else Decimal(price)
+    #         return dprice, currency
+    #     else:
+    #         return None, None
 
     @property
     def offer_id(self):
@@ -596,8 +513,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Offer ID (string).
         """
-        return self._safe_get_element(
-            'Offers.Offer.OfferListing.OfferListingId')
+        return self._safe_get_element(u'Offers.Offer.OfferListing.OfferListingId')
 
     @property
     def asin(self):
@@ -606,7 +522,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             ASIN (string).
         """
-        return self._safe_get_element_text('ASIN')
+        return self._safe_get_element_text(u'ASIN')
 
     @property
     def sales_rank(self):
@@ -615,19 +531,19 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Sales Rank (integer).
         """
-        return self._safe_get_element_text('SalesRank')
+        return self._safe_get_element_text(u'SalesRank')
 
-    @property
-    def offer_url(self):
-        """Offer URL
-
-        :return:
-            Offer URL (string).
-        """
-        return "{0}{1}/?tag={2}".format(
-            AmazonAPI.AMAZON_ASSOCIATES_BASE_URL.format(domain=AmazonAPI.AMAZON_DOMAINS[self.region]),
-            self.asin,
-            self.aws_associate_tag)
+    # @property
+    # def offer_url(self):
+    #     """Offer URL
+    #
+    #     :return:
+    #         Offer URL (string).
+    #     """
+    #     return "{0}{1}/?tag={2}".format(
+    #         AmazonAPI.AMAZON_ASSOCIATES_BASE_URL.format(domain=AmazonAPI.AMAZON_DOMAINS[self.region]),
+    #         self.asin,
+    #         self.aws_associate_tag)
 
     @property
     def author(self):
@@ -638,7 +554,7 @@ class AmazonProduct(LXMLWrapper):
             Author (string).
         """
         import warnings
-        warnings.warn("deprecated", DeprecationWarning)
+        warnings.warn(u'deprecated', DeprecationWarning)
         authors = self.authors
         if len(authors):
             return authors[0]
@@ -649,10 +565,10 @@ class AmazonProduct(LXMLWrapper):
     def authors(self):
         """Authors.
 
-        :return:List[AnyStr]:Returns of list of authors
+        :return:List[unicode]:Returns of list of authors
         """
         result = []
-        authors = self._safe_get_element('ItemAttributes.Author')
+        authors = self._safe_get_element(u'ItemAttributes.Author')
         if authors is not None:
             for author in authors:
                 result.append(author.text)
@@ -674,11 +590,10 @@ class AmazonProduct(LXMLWrapper):
         """
         # return tuples of name and role
         result = []
-        creators = self._safe_get_element('ItemAttributes.Creator')
+        creators = self._safe_get_element(u'ItemAttributes.Creator')
         if creators is not None:
             for creator in creators:
-                role = creator.attrib['Role'] if \
-                    'Role' in creator.attrib else None
+                role = creator.attrib[u'Role'] if u'Role' in creator.attrib else None
                 result.append((creator.text, role))
         return result
 
@@ -689,7 +604,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Publisher (string)
         """
-        return self._safe_get_element_text('ItemAttributes.Publisher')
+        return self._safe_get_element_text(u'ItemAttributes.Publisher')
 
     @property
     def label(self):
@@ -698,7 +613,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Label (string)
         """
-        return self._safe_get_element_text('ItemAttributes.Label')
+        return self._safe_get_element_text(u'ItemAttributes.Label')
 
     @property
     def manufacturer(self):
@@ -707,7 +622,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Manufacturer (string)
         """
-        return self._safe_get_element_text('ItemAttributes.Manufacturer')
+        return self._safe_get_element_text(u'ItemAttributes.Manufacturer')
 
     @property
     def brand(self):
@@ -716,7 +631,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Brand (string)
         """
-        return self._safe_get_element_text('ItemAttributes.Brand')
+        return self._safe_get_element_text(u'ItemAttributes.Brand')
 
     @property
     def isbn(self):
@@ -725,7 +640,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             ISBN (string)
         """
-        return self._safe_get_element_text('ItemAttributes.ISBN')
+        return self._safe_get_element_text(u'ItemAttributes.ISBN')
 
     @property
     def eisbn(self):
@@ -734,7 +649,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             EISBN (string)
         """
-        return self._safe_get_element_text('ItemAttributes.EISBN')
+        return self._safe_get_element_text(u'ItemAttributes.EISBN')
 
     @property
     def binding(self):
@@ -743,7 +658,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Binding (string)
         """
-        return self._safe_get_element_text('ItemAttributes.Binding')
+        return self._safe_get_element_text(u'ItemAttributes.Binding')
 
     @property
     def pages(self):
@@ -752,7 +667,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Pages (string)
         """
-        return self._safe_get_element_text('ItemAttributes.NumberOfPages')
+        return self._safe_get_element_text(u'ItemAttributes.NumberOfPages')
 
     @property
     def publication_date(self):
@@ -761,7 +676,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Pubdate (datetime.date)
         """
-        return self._safe_get_element_date('ItemAttributes.PublicationDate')
+        return self._safe_get_element_date(u'ItemAttributes.PublicationDate')
 
     @property
     def release_date(self):
@@ -770,7 +685,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Release date (datetime.date)
         """
-        return self._safe_get_element_date('ItemAttributes.ReleaseDate')
+        return self._safe_get_element_date(u'ItemAttributes.ReleaseDate')
 
     @property
     def edition(self):
@@ -779,7 +694,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Edition (string)
         """
-        return self._safe_get_element_text('ItemAttributes.Edition')
+        return self._safe_get_element_text(u'ItemAttributes.Edition')
 
     @property
     def large_image_url(self):
@@ -788,7 +703,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Large image url (string)
         """
-        return self._safe_get_element_text('LargeImage.URL')
+        return self._safe_get_element_text(u'LargeImage.URL')
 
     @property
     def medium_image_url(self):
@@ -797,7 +712,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Medium image url (string)
         """
-        return self._safe_get_element_text('MediumImage.URL')
+        return self._safe_get_element_text(u'MediumImage.URL')
 
     @property
     def small_image_url(self):
@@ -806,7 +721,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Small image url (string)
         """
-        return self._safe_get_element_text('SmallImage.URL')
+        return self._safe_get_element_text(u'SmallImage.URL')
 
     @property
     def tiny_image_url(self):
@@ -815,7 +730,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Tiny image url (string)
         """
-        return self._safe_get_element_text('TinyImage.URL')
+        return self._safe_get_element_text(u'TinyImage.URL')
 
     @property
     def reviews(self):
@@ -826,9 +741,9 @@ class AmazonProduct(LXMLWrapper):
         :return:
             A tuple of: has_reviews (bool), reviews url (string)
         """
-        iframe = self._safe_get_element_text('CustomerReviews.IFrameURL')
-        has_reviews = self._safe_get_element_text('CustomerReviews.HasReviews')
-        if has_reviews is not None and has_reviews == 'true':
+        iframe = self._safe_get_element_text(u'CustomerReviews.IFrameURL')
+        has_reviews = self._safe_get_element_text(u'CustomerReviews.HasReviews')
+        if has_reviews is not None and has_reviews == u'true':
             has_reviews = True
         else:
             has_reviews = False
@@ -836,18 +751,17 @@ class AmazonProduct(LXMLWrapper):
 
     @property
     def ean(self):
-        # type: () -> AnyStr
+        # type: () -> unicode
         """EAN.
 
         :return:
             EAN (string)
         """
-        ean = self._safe_get_element_text('ItemAttributes.EAN')
+        ean = self._safe_get_element_text(u'ItemAttributes.EAN')
         if ean is None:
-            ean_list = self._safe_get_element_text('ItemAttributes.EANList')
+            ean_list = self._safe_get_element_text(u'ItemAttributes.EANList')
             if ean_list:
-                ean = self._safe_get_element_text(
-                    'EANListElement', root=ean_list[0])
+                ean = self._safe_get_element_text(u'EANListElement', root=ean_list[0])
         return ean
 
     @property
@@ -857,12 +771,11 @@ class AmazonProduct(LXMLWrapper):
         :return:
             UPC (string)
         """
-        upc = self._safe_get_element_text('ItemAttributes.UPC')
+        upc = self._safe_get_element_text(u'ItemAttributes.UPC')
         if upc is None:
-            upc_list = self._safe_get_element_text('ItemAttributes.UPCList')
+            upc_list = self._safe_get_element_text(u'ItemAttributes.UPCList')
             if upc_list:
-                upc = self._safe_get_element_text(
-                    'UPCListElement', root=upc_list[0])
+                upc = self._safe_get_element_text(u'UPCListElement', root=upc_list[0])
         return upc
 
     @property
@@ -872,7 +785,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Color (string)
         """
-        return self._safe_get_element_text('ItemAttributes.Color')
+        return self._safe_get_element_text(u'ItemAttributes.Color')
 
     @property
     def sku(self):
@@ -881,7 +794,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             SKU (string)
         """
-        return self._safe_get_element_text('ItemAttributes.SKU')
+        return self._safe_get_element_text(u'ItemAttributes.SKU')
 
     @property
     def mpn(self):
@@ -890,7 +803,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             MPN (string)
         """
-        return self._safe_get_element_text('ItemAttributes.MPN')
+        return self._safe_get_element_text(u'ItemAttributes.MPN')
 
     @property
     def model(self):
@@ -899,7 +812,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Model (string)
         """
-        return self._safe_get_element_text('ItemAttributes.Model')
+        return self._safe_get_element_text(u'ItemAttributes.Model')
 
     @property
     def part_number(self):
@@ -908,7 +821,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Part Number (string)
         """
-        return self._safe_get_element_text('ItemAttributes.PartNumber')
+        return self._safe_get_element_text(u'ItemAttributes.PartNumber')
 
     @property
     def title(self):
@@ -917,7 +830,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Title (string)
         """
-        return self._safe_get_element_text('ItemAttributes.Title')
+        return self._safe_get_element_text(u'ItemAttributes.Title')
 
     @property
     def editorial_review(self):
@@ -931,7 +844,7 @@ class AmazonProduct(LXMLWrapper):
         reviews = self.editorial_reviews
         if reviews:
             return reviews[0]
-        return ''
+        return u''
 
     @property
     def editorial_reviews(self):
@@ -945,18 +858,18 @@ class AmazonProduct(LXMLWrapper):
                 Editorial Review (string)
         """
         result = []
-        reviews_node = self._safe_get_element('EditorialReviews')
+        reviews_node = self._safe_get_element(u'EditorialReviews')
 
         if reviews_node is not None:
             for review_node in reviews_node.iterchildren():
-                content_node = getattr(review_node, 'Content')
+                content_node = getattr(review_node, u'Content')
                 if content_node is not None:
                     result.append(content_node.text)
         return result
 
     @property
     def languages(self):
-        # type: () -> Set[AnyStr]
+        # type: () -> set[unicode]
         """Languages.
 
         Returns a set of languages in lower-case.
@@ -965,10 +878,10 @@ class AmazonProduct(LXMLWrapper):
             Returns a set of languages in lower-case (strings).
         """
         result = set()
-        languages = self._safe_get_element('ItemAttributes.Languages')
+        languages = self._safe_get_element(u'ItemAttributes.Languages')
         if languages is not None:
             for language in languages.iterchildren():
-                text = self._safe_get_element_text('Name', language)
+                text = self._safe_get_element_text(u'Name', language)
                 if text:
                     result.add(text.lower())
         return result
@@ -980,46 +893,46 @@ class AmazonProduct(LXMLWrapper):
         Returns a list of feature descriptions.
 
         :return:
-            Returns a list of 'ItemAttributes.Feature' elements (strings).
+            Returns a list of u'ItemAttributes.Feature' elements (strings).
         """
         result = []
-        features = self._safe_get_element('ItemAttributes.Feature')
+        features = self._safe_get_element(u'ItemAttributes.Feature')
         if features is not None:
             for feature in features:
                 result.append(feature.text)
         return result
 
-    @property
-    def list_price(self):
-        """List Price.
-
-        :return:
-            A tuple containing:
-
-                1. Decimal representation of price.
-                2. ISO Currency code (string).
-        """
-        price = self._safe_get_element_text('ItemAttributes.ListPrice.Amount')
-        currency = self._safe_get_element_text(
-            'ItemAttributes.ListPrice.CurrencyCode')
-        if price:
-            dprice = Decimal(
-                price) / 100 if 'JP' not in self.region else Decimal(price)
-            return dprice, currency
-        else:
-            return None, None
+    # @property
+    # def list_price(self):
+    #     """List Price.
+    #
+    #     :return:
+    #         A tuple containing:
+    #
+    #             1. Decimal representation of price.
+    #             2. ISO Currency code (string).
+    #     """
+    #     price = self._safe_get_element_text(u'ItemAttributes.ListPrice.Amount')
+    #     currency = self._safe_get_element_text(
+    #         u'ItemAttributes.ListPrice.CurrencyCode')
+    #     if price:
+    #         dprice = Decimal(
+    #             price) / 100 if u'JP' not in self.region else Decimal(price)
+    #         return dprice, currency
+    #     else:
+    #         return None, None
 
     def get_attribute(self, name):
         """Get Attribute
 
-        Get an attribute (child elements of 'ItemAttributes') value.
+        Get an attribute (child elements of u'ItemAttributes') value.
 
         :param name:
             Attribute name (string)
         :return:
             Attribute value (string) or None if not found.
         """
-        return self._safe_get_element_text("ItemAttributes.{0}".format(name))
+        return self._safe_get_element_text(u'ItemAttributes.{0}'.format(name))
 
     def get_attribute_details(self, name):
         """Get Attribute Details
@@ -1032,7 +945,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             A name/value dictionary.
         """
-        return self._safe_get_element("ItemAttributes.{0}".format(name)).attrib
+        return self._safe_get_element(u'ItemAttributes.{0}'.format(name)).attrib
 
     def get_attributes(self, name_list):
         """Get Attributes
@@ -1060,42 +973,42 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Parent ASIN if product has a parent.
         """
-        return self._safe_get_element('ParentASIN')
+        return self._safe_get_element(u'ParentASIN')
 
-    def get_parent(self):
-        # type: () -> AmazonProduct
-        """Get Parent.
-
-        Fetch parent product if it exists.
-        Use `parent_asin` to check if a parent exist before fetching.
-
-        :return:
-            An instance of :class:`~.AmazonProduct` representing the
-            parent product.
-        """
-        if not self.parent:
-            parent = self._safe_get_element('ParentASIN')
-            if parent:
-                self.parent = self.api.lookup(ItemId=parent)
-        return self.parent
+    # def get_parent(self):
+    #     # type: () -> AmazonProduct
+    #     """Get Parent.
+    #
+    #     Fetch parent product if it exists.
+    #     Use `parent_asin` to check if a parent exist before fetching.
+    #
+    #     :return:
+    #         An instance of :class:`~.AmazonProduct` representing the
+    #         parent product.
+    #     """
+    #     if not self.parent:
+    #         parent = self._safe_get_element(u'ParentASIN')
+    #         if parent:
+    #             self.parent = self.api.lookup(ItemId=parent)
+    #     return self.parent
 
     @property
     def browse_nodes(self):
         """Browse Nodes.
 
         :return:
-            A list of :class:`~.AmazonBrowseNode` objects.
+            A list of :class:`~._AmazonBrowseNode` objects.
         """
-        root = self._safe_get_element('BrowseNodes')
+        root = self._safe_get_element(u'BrowseNodes')
         if root is None:
             return []
 
-        return [AmazonBrowseNode(child) for child in root.iterchildren()]
+        return [_AmazonBrowseNode(child) for child in root.iterchildren()]
 
     @property
     def images(self):
         """List of images for a response.
-        When using lookup with RespnoseGroup 'Images', you'll get a
+        When using lookup with RespnoseGroup u'Images', you'll get a
         list of images. Parse them so they are returned in an easily
         used list format.
 
@@ -1103,8 +1016,7 @@ class AmazonProduct(LXMLWrapper):
             A list of `ObjectifiedElement` images
         """
         try:
-            images = [image for image in self._safe_get_element(
-                'ImageSets.ImageSet')]
+            images = [image for image in self._safe_get_element(u'ImageSets.ImageSet')]
         except TypeError:  # No images in this ResponseGroup
             images = []
         return images
@@ -1116,15 +1028,15 @@ class AmazonProduct(LXMLWrapper):
         :return:
             The genre of a movie.
         """
-        return self._safe_get_element_text('ItemAttributes.Genre')
+        return self._safe_get_element_text(u'ItemAttributes.Genre')
 
     @property
     def actors(self):
         """
-        :return:List(AnyStr):A list of actors names.
+        :return:List(unicode):A list of actors names.
         """
         result = []
-        actors = self._safe_get_element('ItemAttributes.Actor') or []
+        actors = self._safe_get_element(u'ItemAttributes.Actor') or []
         for actor in actors:
             result.append(actor.text)
         return result
@@ -1137,7 +1049,7 @@ class AmazonProduct(LXMLWrapper):
             A list of directors for a movie.
         """
         result = []
-        directors = self._safe_get_element('ItemAttributes.Director') or []
+        directors = self._safe_get_element(u'ItemAttributes.Director') or []
         for director in directors:
             result.append(director.text)
         return result
@@ -1149,7 +1061,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             IsAdultProduct (string)
         """
-        return self._safe_get_element_text('ItemAttributes.IsAdultProduct')
+        return self._safe_get_element_text(u'ItemAttributes.IsAdultProduct')
 
     @property
     def product_group(self):
@@ -1158,7 +1070,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             ProductGroup (string)
         """
-        return self._safe_get_element_text('ItemAttributes.ProductGroup')
+        return self._safe_get_element_text(u'ItemAttributes.ProductGroup')
 
     @property
     def product_type_name(self):
@@ -1167,7 +1079,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             ProductTypeName (string)
         """
-        return self._safe_get_element_text('ItemAttributes.ProductTypeName')
+        return self._safe_get_element_text(u'ItemAttributes.ProductTypeName')
 
     @property
     def formatted_price(self):
@@ -1176,8 +1088,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             FormattedPrice (string)
         """
-        return self._safe_get_element_text(
-            'OfferSummary.LowestNewPrice.FormattedPrice')
+        return self._safe_get_element_text(u'OfferSummary.LowestNewPrice.FormattedPrice')
 
     @property
     def running_time(self):
@@ -1186,7 +1097,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             RunningTime (string)
         """
-        return self._safe_get_element_text('ItemAttributes.RunningTime')
+        return self._safe_get_element_text(u'ItemAttributes.RunningTime')
 
     @property
     def studio(self):
@@ -1195,7 +1106,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Studio (string)
         """
-        return self._safe_get_element_text('ItemAttributes.Studio')
+        return self._safe_get_element_text(u'ItemAttributes.Studio')
 
     @property
     def is_preorder(self):
@@ -1204,8 +1115,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             IsPreorder (string).
         """
-        return self._safe_get_element_text(
-            'Offers.Offer.OfferListing.AvailabilityAttributes.IsPreorder')
+        return self._safe_get_element_text(u'Offers.Offer.OfferListing.AvailabilityAttributes.IsPreorder')
 
     @property
     def availability(self):
@@ -1214,8 +1124,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Availability (string).
         """
-        return self._safe_get_element_text(
-            'Offers.Offer.OfferListing.Availability')
+        return self._safe_get_element_text(u'Offers.Offer.OfferListing.Availability')
 
     @property
     def availability_type(self):
@@ -1224,9 +1133,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             AvailabilityType (string).
         """
-        return self._safe_get_element_text(
-            'Offers.Offer.OfferListing.AvailabilityAttributes.AvailabilityType'
-        )
+        return self._safe_get_element_text(u'Offers.Offer.OfferListing.AvailabilityAttributes.AvailabilityType')
 
     @property
     def availability_min_hours(self):
@@ -1235,8 +1142,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             MinimumHours (string).
         """
-        return self._safe_get_element_text(
-            'Offers.Offer.OfferListing.AvailabilityAttributes.MinimumHours')
+        return self._safe_get_element_text(u'Offers.Offer.OfferListing.AvailabilityAttributes.MinimumHours')
 
     @property
     def availability_max_hours(self):
@@ -1245,8 +1151,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             MaximumHours (string).
         """
-        return self._safe_get_element_text(
-            'Offers.Offer.OfferListing.AvailabilityAttributes.MaximumHours')
+        return self._safe_get_element_text(u'Offers.Offer.OfferListing.AvailabilityAttributes.MaximumHours')
 
     @property
     def detail_page_url(self):
@@ -1255,7 +1160,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             DetailPageURL (string)
         """
-        return self._safe_get_element_text('DetailPageURL')
+        return self._safe_get_element_text(u'DetailPageURL')
 
     @property
     def number_sellers(self):
@@ -1264,7 +1169,7 @@ class AmazonProduct(LXMLWrapper):
         :return:
             Number of offers - New (string)\
         """
-        return self._safe_get_element_text('OfferSummary.TotalNew')
+        return self._safe_get_element_text(u'OfferSummary.TotalNew')
 
     @property
     def alternate_versions(self):
@@ -1273,56 +1178,57 @@ class AmazonProduct(LXMLWrapper):
         :return: List[Dict(title,asin,binding)]]
         """
         results = []
-        alternate_versions = self._safe_get_element('AlternateVersions.AlternateVersion')
+        alternate_versions = self._safe_get_element(u'AlternateVersions.AlternateVersion')
         if alternate_versions is not None:
             for alternate_version in alternate_versions:
-                title = self._safe_get_element_text('Title', root=alternate_version)
-                asin = self._safe_get_element_text('ASIN', root=alternate_version)
-                binding = self._safe_get_element_text('Binding', root=alternate_version)
-                av = dict(title=title, asin=asin, binding=binding)
+                title = self._safe_get_element_text(u'Title', root=alternate_version)
+                asin = self._safe_get_element_text(u'ASIN', root=alternate_version)
+                binding = self._safe_get_element_text(u'Binding', root=alternate_version)
+                av = {u'title': title, u'asin': asin, u'binding': binding}
                 results.append(av)
 
         return results
 
 
-class AmazonCart(LXMLWrapper):
+class AmazonCart(_LXMLWrapper):
     """Wrapper around BottlenoseAmazon shopping cart.
        Allows iterating over Items in the cart.
     """
 
     @property
     def cart_id(self):
-        return self._safe_get_element_text('Cart.CartId')
+        return self._safe_get_element_text(u'Cart.CartId')
 
     @property
     def purchase_url(self):
-        return self._safe_get_element_text('Cart.PurchaseURL')
+        # type: () -> unicode
+        return self._safe_get_element_text(u'Cart.PurchaseURL')
 
     @property
     def amount(self):
-        return self._safe_get_element_text('Cart.SubTotal.Amount')
+        return self._safe_get_element_text(u'Cart.SubTotal.Amount')
 
     @property
     def formatted_price(self):
-        return self._safe_get_element_text('Cart.SubTotal.FormattedPrice')
+        return self._safe_get_element_text(u'Cart.SubTotal.FormattedPrice')
 
     @property
     def currency_code(self):
-        return self._safe_get_element_text('Cart.SubTotal.CurrencyCode')
+        return self._safe_get_element_text(u'Cart.SubTotal.CurrencyCode')
 
     @property
     def hmac(self):
-        return self._safe_get_element_text('Cart.HMAC')
+        return self._safe_get_element_text(u'Cart.HMAC')
 
     @property
     def url_encoded_hmac(self):
-        return self._safe_get_element_text('Cart.URLEncodedHMAC')
+        return self._safe_get_element_text(u'Cart.URLEncodedHMAC')
 
     def __len__(self):
-        return len(self._safe_get_element('Cart.CartItems.CartItem'))
+        return len(self._safe_get_element(u'Cart.CartItems.CartItem'))
 
     def __iter__(self):
-        items = self._safe_get_element('Cart.CartItems.CartItem')
+        items = self._safe_get_element(u'Cart.CartItems.CartItem')
         if items is not None:
             for item in items:
                 yield AmazonCartItem(item)
@@ -1335,39 +1241,47 @@ class AmazonCart(LXMLWrapper):
         for item in self:
             if item.cart_item_id == cart_item_id:
                 return item
-        raise KeyError(
-            'no item found with CartItemId: {0}'.format(cart_item_id, ))
+        raise KeyError(u'no item found with CartItemId: {0}'.format(cart_item_id, ))
 
 
-class AmazonCartItem(LXMLWrapper):
+class AmazonCartItem(_LXMLWrapper):
     @property
     def asin(self):
-        return self._safe_get_element_text('ASIN')
+        return self._safe_get_element_text(u'ASIN')
 
     @property
     def quantity(self):
-        return self._safe_get_element_text('Quantity')
+        """
+        :return: int: quantity
+        """
+        return self._safe_get_element_text(u'Quantity')
 
     @property
     def cart_item_id(self):
-        return self._safe_get_element_text('CartItemId')
+        return self._safe_get_element_text(u'CartItemId')
 
     @property
     def title(self):
-        return self._safe_get_element_text('Title')
+        return self._safe_get_element_text(u'Title')
 
     @property
     def product_group(self):
-        return self._safe_get_element_text('ProductGroup')
+        return self._safe_get_element_text(u'ProductGroup')
 
     @property
     def formatted_price(self):
-        return self._safe_get_element_text('Price.FormattedPrice')
+        return self._safe_get_element_text(u'Price.FormattedPrice')
 
     @property
     def amount(self):
-        return self._safe_get_element_text('Price.Amount')
+        return self._safe_get_element_text(u'Price.Amount')
 
     @property
     def currency_code(self):
-        return self._safe_get_element_text('Price.CurrencyCode')
+        return self._safe_get_element_text(u'Price.CurrencyCode')
+
+
+class ItemNotAccessibleExeption(AmazonException):
+    """This item is not accessible through the Product Advertising API.
+    """
+    pass
