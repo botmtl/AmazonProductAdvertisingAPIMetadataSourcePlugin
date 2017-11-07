@@ -15,7 +15,7 @@ from Queue import Queue
 from ast import literal_eval
 from calibre.utils.logging import Log
 from threading import Event
-from .isbn import isI10, convert, isI13
+from .isbn import isI10, convert, isI13, toI13
 from calibre.constants import config_dir
 from calibre.ebooks.metadata.book.base import Metadata
 from calibre.ebooks.metadata.opf2 import metadata_to_opf
@@ -25,7 +25,8 @@ from calibre.utils.logging import ThreadSafeLog
 from calibre.utils.titlecase import titlecase
 from calibre.ebooks.metadata.opf import get_metadata
 # try:
-from .amazonsimpleproductapi import AmazonAPI, AmazonProduct, AsinNotFoundException, LookupException, NoMorePagesException, RequestThrottledException, SearchException
+from .amazonsimpleproductapi import AmazonAPI, AmazonProduct, AsinNotFoundException, LookupException, \
+    NoMorePagesException, RequestThrottledException, SearchException
 
 # except ImportError:
 # noinspection PyUnresolvedReferences
@@ -40,6 +41,7 @@ except ImportError:
 __license__ = u'GPL v3'
 __copyright__ = u'2011, Kovid Goyal kovid@kovidgoyal.net'
 __docformat__ = u'restructuredtext en'
+
 
 class AmazonProductAdvertisingAPI(Source):
     """
@@ -58,7 +60,8 @@ class AmazonProductAdvertisingAPI(Source):
     #: List of metadata fields that can potentially be download by this plugin
     #: during the identify phase
     # identifier:amazon_DOMAIN will be added dynamically according to prefs
-    touched_fields = frozenset([u'title', u'authors', u'identifier:isbn', u'comments', u'publisher', u'pubdate', u'tags'])
+    touched_fields = frozenset(
+        [u'title', u'authors', u'identifier:isbn', u'comments', u'publisher', u'pubdate', u'tags'])
 
     #: Set this to True if your plugin returns HTML formatted comments
     has_html_comments = True
@@ -95,14 +98,22 @@ class AmazonProductAdvertisingAPI(Source):
     # {u'CA': u'ca', u'DE': u'de', u'ES': u'es', u'FR': u'fr', u'IN': u'in', u'IT': u'it', u'JP': u'co.jp', u'UK': u'co.uk', u'US': u'com', u'CN': u'cn'}
     #: A list of :class:`Option` objects. They will be used to automatically
     #: construct the configuration widget for this plugin
-    options = [Option(u'AWS_ACCESS_KEY_ID', u'string', u'', u'AWS_ACCESS_KEY_ID', u'AWS key'), Option(u'AWS_SECRET_ACCESS_KEY', u'string', u'', u'AWS_SECRET_ACCESS_KEY', u'AWS secret'),
-               Option(u'AWS_ASSOCIATE_TAG', u'string', u'', u'AWS_ASSOCIATE_TAG', u'Amazon-associate username'), Option(u'title_cleaner', u'string', u'', u'title cleaner', u''),
-               Option(u'domain', u'choices', u'US', u'Amazon Product API domain to use:', u'Metadata from BottlenoseAmazon will be fetched using this country\'s BottlenoseAmazon website.', choices=AmazonAPI.AMAZON_DOMAINS),
-               Option(u'extract_series_from_title', u'string', u'[ru"\((?P<series_name>.+?)\s+(#|book)\s*(?P<series_index>\d+)\)", ru"\[(?P<series_name>.+?)\s+(#|book)\s*(?P<series_index>\d+)\]"]', u'series extractor',
+    options = [Option(u'AWS_ACCESS_KEY_ID', u'string', u'', u'AWS_ACCESS_KEY_ID', u'AWS key'),
+               Option(u'AWS_SECRET_ACCESS_KEY', u'string', u'', u'AWS_SECRET_ACCESS_KEY', u'AWS secret'),
+               Option(u'AWS_ASSOCIATE_TAG', u'string', u'', u'AWS_ASSOCIATE_TAG', u'Amazon-associate username'),
+               Option(u'title_cleaner', u'string', u'', u'title cleaner', u''),
+               Option(u'domain', u'choices', u'US', u'Amazon Product API domain to use:',
+                      u'Metadata from BottlenoseAmazon will be fetched using this country\'s BottlenoseAmazon website.',
+                      choices=AmazonAPI.AMAZON_DOMAINS),
+               Option(u'extract_series_from_title', u'string',
+                      u'[ru"\((?P<series_name>.+?)\s+(#|book)\s*(?P<series_index>\d+)\)", ru"\[(?P<series_name>.+?)\s+(#|book)\s*(?P<series_index>\d+)\]"]',
+                      u'series extractor',
                       u'a list of regular expression that be try successively to the title in an attempt to find the series_name and series_index. each regular expression must define group(series_name) and (series_index)'),
-               Option(u'log_verbosity', u'choices', u'ERROR', u'log_verbosity', u'', choices={ Log.DEBUG: u'DEBUG', Log.INFO: u'INFO', Log.WARN: u'WARNING', Log.ERROR: u'ERROR'}),
+               Option(u'log_verbosity', u'choices', u'ERROR', u'log_verbosity', u'',
+                      choices={Log.DEBUG: u'DEBUG', Log.INFO: u'INFO', Log.WARN: u'WARNING', Log.ERROR: u'ERROR'}),
                Option(u'reformat_author_initials', u'bool', True, u'reformat_author_initials', u''),
-               Option(u'disable_title_author_search', u'bool', False, u'Disable title/author search:', u'Only books with identifiers will have a chance for to find a match with the metadata provider.'),
+               Option(u'disable_title_author_search', u'bool', False, u'Disable title/author search:',
+                      u'Only books with identifiers will have a chance for to find a match with the metadata provider.'),
                Option(u'disable_api_calls', u'bool', False, u'Disable api calls:', u'BATCH UPDATE.')]
 
     @property
@@ -121,9 +132,13 @@ class AmazonProductAdvertisingAPI(Source):
             kwargs:
         """
         Source.__init__(self, *args, **kwargs)
-        self.amazonapi = AmazonAPI(aws_key=self.prefs[u'AWS_ACCESS_KEY_ID'], aws_secret=self.prefs[u'AWS_SECRET_ACCESS_KEY'], aws_associate_tag=self.prefs[u'AWS_ASSOCIATE_TAG'], Region=self.prefs[u'domain'], MaxQPS=0.2, Timeout=20)
+        self.amazonapi = AmazonAPI(aws_key=self.prefs[u'AWS_ACCESS_KEY_ID'],
+                                   aws_secret=self.prefs[u'AWS_SECRET_ACCESS_KEY'],
+                                   aws_associate_tag=self.prefs[u'AWS_ASSOCIATE_TAG'], Region=self.prefs[u'domain'],
+                                   MaxQPS=0.8, Timeout=20)
         self.set_touched_fields()
-        self.base_request = {u'ResponseGroup': u'AlternateVersions,BrowseNodes,EditorialReview,Images,ItemAttributes', u'Region': self.prefs[u'domain'], u'MaxQPS': 0.2, u'Timeout': 30}
+        self.base_request = {u'ResponseGroup': u'AlternateVersions,BrowseNodes,EditorialReview,Images,ItemAttributes',
+                             u'Region': self.prefs[u'domain'], u'MaxQPS': 0.2, u'Timeout': 30}
         self.amazontempfolder = os.path.join(config_dir, 'amazonmi')
 
     def cli_main(self, args):
@@ -134,51 +149,82 @@ class AmazonProductAdvertisingAPI(Source):
         Name". Any arguments passed are present in the args variable.
         """
         self.log = Log()
-        identifiers = args[1].split(u',')
-        self.log.info(u'indentifiers:', identifiers)
-        self.bulk_identify(identifiers)
+        if os.path.isfile(os.path.join(self.amazontempfolder, u'batch.txt')):
+            f = open(os.path.join(self.amazontempfolder, u'batch.txt'),'r')
+            content = f.read()
+            f.close()
+            identifiers = content.split(u',')
+        else:
+            identifiers = args[1].split(u' ')
+        identifiers = map(unicode, identifiers)
+        identifiers_isbn = [i for i in identifiers if len(i) == 13]
+        identifiers_asins = [i for i in identifiers if 'B' in i]
+        if len(identifiers_isbn) > 0:
+            self.bulk_identify(identifiers, u'ISBN')
+        if len(identifiers_asins) > 0:
+            self.bulk_identify(identifiers, u'ASIN')
         return
 
     def write_opf(self, product):
-        if not os.path.exists(self.amazontempfolder):
-            os.makedirs(self.amazontempfolder)
+        """
+
+        :param product: AmazonProduct: book
+        """
 
         self.write_it(product.asin, product)
-        if product.ean or product.isbn or product.eisbn:
-            self.write_it(product.ean or product.isbn or product.eisbn, product)
+        if product.asin and 'B' not in unicode(product.asin)[0]:
+            if product.ean or product.isbn or product.eisbn:
+                self.write_it(toI13(product.ean or product.isbn or product.eisbn), product)
 
     def write_it(self, id, product):
-        self.log("write_it",id)
+
+        """
+
+        :param id: unicode: file name
+        :param product: AmazonProduct: product
+        """
+        # self.log("write_it",id)
         persistentMI = os.path.join(self.amazontempfolder, id + u'.mi')
-        self.log("write_it path", persistentMI)
+        # self.log("write_it path", persistentMI)
         if not os.path.isfile(persistentMI):
-            self.log.info(u'create', persistentMI)
+            # self.log.info(u'create', persistentMI)
             f = open(persistentMI, str('wb'))
             mi = self.AmazonProduct_to_Metadata(product)
             f.write(metadata_to_opf(mi, default_lang=u'und'))
             f.close()
 
-    def bulk_identify(self, identifiers):
+    def bulk_identify(self, identifiers, id_type=u"ASIN"):
         """
+        :param id_type:
         :param identifiers:list(unicode):list of identifiers
         :return:list(Metadata)
         """
         # type: (List[unicode]) -> List[Metadata]
+        if not os.path.exists(self.amazontempfolder):
+            os.makedirs(self.amazontempfolder)
 
         lists_identifiers = [identifiers[x:x + 10] for x in range(0, len(identifiers), 10)]
-        self.log.info(u'lists_identifiers:', lists_identifiers)
+        # self.log.info(u'lists_identifiers:', lists_identifiers)
         request = self.base_request.copy()
 
         for li in lists_identifiers:
-            request.update({u'ItemId': u','.join(li), u'IdType':u'ISBN', 'SearchIndex':'Books'})
+            request.update({u'ItemId': u','.join(li), u'IdType': id_type})
+            if id_type != "ASIN":
+                request.update({u'SearchIndex': u'Books'})
             try:
                 products_asin = self.amazonapi.item_lookup(**request)
-                self.log.info(u"found", len(products_asin), u"results")
+                self.log.info(u'found', len(products_asin), u'results')
                 for p in products_asin:
                     self.write_opf(p)
-            except (LookupException,AsinNotFoundException,Exception) as e:
+            except (LookupException, AsinNotFoundException, Exception) as e:
                 self.log.info(e.message)
                 self.log.exception()
+                pass
+            try:
+                with open(u'd:\\done.txt', 'a') as f:
+                    f.write('\n'.join(li))
+                    f.write('\n')
+            except:
                 pass
 
     def is_configured(self):
@@ -187,7 +233,8 @@ class AmazonProductAdvertisingAPI(Source):
         :return: False if your plugin needs to be configured before it can be used. For example, it might need a username/password/API key.
         :rtype: bool
         """
-        if self.prefs[u'AWS_ACCESS_KEY_ID'] and self.prefs[u'AWS_SECRET_ACCESS_KEY'] and self.prefs[u'AWS_ASSOCIATE_TAG'] and self.prefs[u'extract_series_from_title'] and self.prefs[u'title_cleaner']:
+        if self.prefs[u'AWS_ACCESS_KEY_ID'] and self.prefs[u'AWS_SECRET_ACCESS_KEY'] and self.prefs[
+            u'AWS_ASSOCIATE_TAG'] and self.prefs[u'extract_series_from_title'] and self.prefs[u'title_cleaner']:
             return True
 
         return False
@@ -226,7 +273,6 @@ class AmazonProductAdvertisingAPI(Source):
 
         cover_url = self.cached_identifier_to_cover_url(cachedidentifier)
         return cover_url
-
 
     # # Metadata API {{{
     # def get_book_url(self, identifiers):
@@ -306,7 +352,8 @@ class AmazonProductAdvertisingAPI(Source):
         # keep identifiers that can be of use
         if identifiers.get(self.touched_field) or identifiers.get('mobi-asin') or identifiers.get(u'isbn'):
             try:
-                mi = self.get_cached_mi(identifier=identifiers.get(u'amazon')) or self.get_cached_mi(identifier=identifiers.get(u'isbn'))
+                mi = self.get_cached_mi(identifier=identifiers.get(u'amazon')) or self.get_cached_mi(
+                    identifier=identifiers.get(u'isbn'))
                 if mi:
                     result_queue.put(mi)
                     return
@@ -334,6 +381,11 @@ class AmazonProductAdvertisingAPI(Source):
             self.log.exception()
 
     def get_cached_mi(self, identifier):
+        """
+
+        :param identifier: unicode: identifier
+        :return:
+        """
         if not identifier: return None
         persistentMI = os.path.join(self.amazontempfolder, identifier + '.mi')
         if os.path.isfile(persistentMI):
@@ -392,7 +444,7 @@ class AmazonProductAdvertisingAPI(Source):
         request = self.base_request.copy()
         asin = identifiers.get(self.touched_field) or identifiers.get(u'mobi-asin')
         isbn = identifiers.get(u'isbn')
-        
+
         if asin:
             request.update({u'ItemId': asin})
         elif isbn:
@@ -422,9 +474,7 @@ class AmazonProductAdvertisingAPI(Source):
                 return response
         return response
 
-
-
-    def clean_title(self, title):
+    def _clean_title(self, title):
         # type: (Text) -> Text
         """
         :param title: Text: title
@@ -440,7 +490,7 @@ class AmazonProductAdvertisingAPI(Source):
 
         return titlecase(title)
 
-    def parseAuthors(self, product):
+    def _parseAuthors(self, product):
         """
 
         :param product: AmazonProductAPI
@@ -456,18 +506,21 @@ class AmazonProductAdvertisingAPI(Source):
 
         try:
             if self.prefs[u'reformat_author_initials']:
-                authors_we_found = [re.sub(ur'^([A-Z])([A-Z]) (.+)$', ur'\1.\2. \3', a, flags=re.IGNORECASE) for a in authors_we_found]
-                authors_we_found = [re.sub(ur'^([A-Z]) (.+)$', ur'\1. \2', a, flags=re.IGNORECASE) for a in authors_we_found]
+                authors_we_found = [re.sub(ur'^([A-Z])([A-Z]) (.+)$', ur'\1.\2. \3', a, flags=re.IGNORECASE) for a in
+                                    authors_we_found]
+                authors_we_found = [re.sub(ur'^([A-Z]) (.+)$', ur'\1. \2', a, flags=re.IGNORECASE) for a in
+                                    authors_we_found]
         except Exception:
             self.log.exception()
 
         try:
             from calibre.utils.config import JSONConfig
             plugin_prefs = JSONConfig('plugins/Quality Check')
-            from calibre_plugins.quality_check.config import STORE_OPTIONS,KEY_AUTHOR_INITIALS_MODE,AUTHOR_INITIALS_MODES
+            from calibre_plugins.quality_check.config import STORE_OPTIONS, KEY_AUTHOR_INITIALS_MODE, \
+                AUTHOR_INITIALS_MODES
             initials_mode = plugin_prefs[STORE_OPTIONS].get(KEY_AUTHOR_INITIALS_MODE, AUTHOR_INITIALS_MODES[0])
             from quality_check.helpers import get_formatted_author_initials
-            authors_we_found = [get_formatted_author_initials(initials_mode,author) for author in authors_we_found]
+            authors_we_found = [get_formatted_author_initials(initials_mode, author) for author in authors_we_found]
         except:
             pass
 
@@ -480,47 +533,47 @@ class AmazonProductAdvertisingAPI(Source):
         :param product: AmazonProduct: AmazonAPI.AmazonProduct
         :return: Metadata: Metadata
         """
-        mi = Metadata(self.clean_title(product.title), self.parseAuthors(product))
+        mi = Metadata(self._clean_title(product.title), self._parseAuthors(product))
         mi.source_relevance = 0
 
         mi.set_identifier(self.touched_field, product.asin)
-        self.log.info(u'asin:', product.asin)
+        # self.log.info(u'asin:', product.asin)
         if product.ean or product.isbn or product.eisbn:
             mi.set_identifier(u'isbn', product.ean or product.isbn or product.eisbn)
-            self.log.info(u'isbn:', product.ean or product.isbn or product.eisbn)
+            # self.log.info(u'isbn:', product.ean or product.isbn or product.eisbn)
 
         if product.large_image_url:
-            self.log.info(u'cache_identifier_to_cover_url:' + product.asin + u',' + product.large_image_url)
+            # self.log.info(u'cache_identifier_to_cover_url:' + product.asin + u',' + product.large_image_url)
             self.cache_identifier_to_cover_url(product.asin, product.large_image_url)
 
         if product.publisher:
-            self.log.info(u'product.publisher is:', product.publisher)
+            # self.log.info(u'product.publisher is:', product.publisher)
             mi.publisher = product.publisher
 
         if len(list(product.languages)) > 0:
-            self.log.info(u'product.languages is:', product.languages)
+            # self.log.info(u'product.languages is:', product.languages)
             mi.languages = list(product.languages)
 
         if product.publication_date:
-            self.log.info(u'product.publication_date is:', product.publication_date.strftime(u'%Y-%m-%d'))
+            # self.log.info(u'product.publication_date is:', product.publication_date.strftime(u'%Y-%m-%d'))
             mi.pubdate = datetime.datetime.combine(product.publication_date, datetime.time.min)
         elif product.release_date:
-            self.log.info(u'product.release_date is:', product.release_date.strftime(u'%Y-%m-%d'))
+            # self.log.info(u'product.release_date is:', product.release_date.strftime(u'%Y-%m-%d'))
             mi.pubdate = datetime.datetime.combine(product.release_date, datetime.time.min)
 
         if product.editorial_review:
-            self.log.info(u'product.editorial_review is:', product.editorial_review)
+            # self.log.info(u'product.editorial_review is:', product.editorial_review)
             mi.comments = product.editorial_review
 
         if len(product.browse_nodes) > 0:
-            self.log.info(u'product.browse_nodes:', product.browse_nodes)
+            # self.log.info(u'product.browse_nodes:', product.browse_nodes)
             mi.tags = [p.name.text for p in product.browse_nodes]
             mi.tags.extend(['AMAAPI'])
-            self.log.info(u'tags:', mi.tags)
+            # self.log.info(u'tags:', mi.tags)
 
         series_name, series_index = self.parse_series(product.title)
         if series_name and series_index:
-            self.log.info(u'series:', series_name, u' ', series_index)
+            # self.log.info(u'series:', series_name, u' ', series_index)
             mi.series = series_name
             mi.series_index = series_index
 
@@ -549,7 +602,8 @@ class AmazonProductAdvertisingAPI(Source):
         return None, None
 
     # noinspection PyDefaultArgument
-    def download_cover(self, log, result_queue, abort, title=None, authors=[], identifiers={}, timeout=30, get_best_cover=False):
+    def download_cover(self, log, result_queue, abort, title=None, authors=[], identifiers={}, timeout=30,
+                       get_best_cover=False):
         # type: (ThreadSafeLog, Queue, Event, Text, list(Text), dict(Text), int, bool) -> object
         """
         Download a cover and put it into result_queue. The parameters all have
@@ -577,11 +631,9 @@ class AmazonProductAdvertisingAPI(Source):
         if cached_url is None:
             self.log.info(u'No cached cover found, running identify')
             try:
-                rq = Queue()
-                self.identify(self.log, rq, abort, title, authors, identifiers)
+                self.identify(self.log, result_queue, abort, title, authors, identifiers)
                 cached_url = self.get_cached_cover_url(identifiers)
                 if cached_url is None:
-                    self.log.info(u'Download cover failed.')
                     return u'Download cover failed.  Could not identify.'
             except:
                 return
@@ -598,15 +650,19 @@ class AmazonProductAdvertisingAPI(Source):
             self.log.error(u'Failed to download cover from:', cached_url)
             return u'Failed to download cover from:%s' % cached_url  # }}}
 
+
 if __name__ == u'__main__':  # tests {{{
     # To run these test use: calibre-debug
     # src/calibre/ebooks/metadata/sources/amazon.py
     from calibre.ebooks.metadata.sources.test import title_test, authors_test, test_identify_plugin
 
     com_tests = [  # {{{
-        ({u'title': u'Expert C# 2008 Business Objects', u'authors': [u'Lhotka']}, [title_test(u'Expert C# 2008 Business Objects'), authors_test([u'Rockford Lhotka'])]),
+        ({u'title': u'Expert C# 2008 Business Objects', u'authors': [u'Lhotka']},
+         [title_test(u'Expert C# 2008 Business Objects'), authors_test([u'Rockford Lhotka'])]),
         ({u'identifiers': {u'amazon': u'B0085UEQDO'}}, [title_test(u'Three Parts Dead', exact=True)]),
-        ({u'identifiers': {u'isbn': u'0982514506'}}, [title_test(u'griffin\'s destiny: book three: the griffin\'s daughter trilogy', exact=True)]),
-        ({u'identifiers': {u'amazon': u'B0725WGPFF'}}, [title_test(u'P.S. I Spook You', exact=True), authors_test([u'S. E. Harmon'])])]
+        ({u'identifiers': {u'isbn': u'0982514506'}},
+         [title_test(u'griffin\'s destiny: book three: the griffin\'s daughter trilogy', exact=True)]),
+        ({u'identifiers': {u'amazon': u'B0725WGPFF'}},
+         [title_test(u'P.S. I Spook You', exact=True), authors_test([u'S. E. Harmon'])])]
 
     test_identify_plugin(AmazonProductAdvertisingAPI.name, com_tests)
