@@ -1,3 +1,4 @@
+"""
 # Copyright 2012-2017 Lionheart Software LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -10,7 +11,7 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License.
+# limitations under the License."""
 import gzip
 import sys
 import urllib
@@ -155,7 +156,7 @@ class _BottlenoseAmazonCall(object):
 
         return "https://" + service_domain + "/onca/xml?" + self._quote_query(query)
 
-    def _call_api(self, api_url, err_env):
+    def _call_api(self, api_url):
         """urlopen(), plus error handling and possible retries.
 
         err_env is a dict of additional info passed to the error handler
@@ -165,6 +166,11 @@ class _BottlenoseAmazonCall(object):
         return urllib2.urlopen(api_request, timeout=self.Timeout)
 
     def call_api(self, **kwargs):
+        """
+
+        :param kwargs:
+        :return:
+        """
         cache_url = self.cache_url(**kwargs)
 
         if self.CacheReader:
@@ -186,20 +192,14 @@ class _BottlenoseAmazonCall(object):
             self._last_query_time[0] = time.time()
 
         # make the actual API call
-        response = self._call_api(api_url, {'api_url': api_url, 'cache_url': cache_url})
+        response = self._call_api(api_url)
 
         # decompress the response if need be
-        if sys.version_info[0] == 3:
-            if "gzip" in response.info().get("Content-Encoding"):
-                response_text = gzip.decompress(response.read())
-            else:
-                response_text = response.read()
+        if "gzip" in response.info().getheader("Content-Encoding"):
+            gzipped_file = gzip.GzipFile(fileobj=StringIO(response.read()))
+            response_text = gzipped_file.read()
         else:
-            if "gzip" in response.info().getheader("Content-Encoding"):
-                gzipped_file = gzip.GzipFile(fileobj=StringIO(response.read()))
-                response_text = gzipped_file.read()
-            else:
-                response_text = response.read()
+            response_text = response.read()
 
         # write it back to the cache
         if self.CacheWriter:
@@ -210,6 +210,9 @@ class _BottlenoseAmazonCall(object):
 
 
 class BottlenoseAmazon(_BottlenoseAmazonCall):
+    """
+    BottlenoseAmazon
+    """
     def __init__(self, AWSAccessKeyId=os.environ.get('AWS_ACCESS_KEY_ID'),
                  AWSSecretAccessKey=os.environ.get('AWS_SECRET_ACCESS_KEY'),
                  AssociateTag=os.environ.get('AWS_ASSOCIATE_TAG'), Operation=None, Version="2013-08-01", Region="US",

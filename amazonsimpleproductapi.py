@@ -23,6 +23,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import os
 
+# noinspection PyUnresolvedReferences
 from lxml import etree, objectify
 from lxml.etree import Element
 
@@ -30,7 +31,6 @@ try:
     from .bottlenose import *
 except:
     execfile(str('bottlenose.py'))
-
 
 # try:
 #     # noinspection PyUnresolvedReferences
@@ -46,14 +46,12 @@ class AmazonException(Exception):
         self.code = code
         self.msg = msg
 
-
 class CartException(AmazonException):
     """Cart related Exception
     """
 
     def __init__(self, code=None, msg=None):
         super(CartException, self).__init__(code, msg)
-
 
 class CartInfoMismatchException(CartException):
     """HMAC, CartId and AssociateTag did not match
@@ -62,7 +60,6 @@ class CartInfoMismatchException(CartException):
     def __init__(self, code=None, msg=None):
         super(CartInfoMismatchException, self).__init__(code, msg)
 
-
 class AsinNotFoundException(AmazonException):
     """ASIN Not Found Exception.
     """
@@ -70,22 +67,16 @@ class AsinNotFoundException(AmazonException):
     def __init__(self, code=None, msg=None):
         super(AsinNotFoundException, self).__init__(code, msg)
 
-
 class LookupException(AmazonException):
     """Lookup Exception.
     """
 
-    def __init__(self, code, msg):
+    def __init__(self, code=None, msg=None):
         super(LookupException, self).__init__(code, msg)
-
 
 class SearchException(AmazonException):
     """Search Exception.
     """
-
-    def __init__(self, code, msg):
-        super(SearchException, self).__init__(code, msg)
-
 
 class NoMorePagesException(SearchException):
     """No More Pages Exception.
@@ -93,7 +84,6 @@ class NoMorePagesException(SearchException):
 
     def __init__(self, code=None, msg=None):
         super(NoMorePagesException, self).__init__(code, msg)
-
 
 class RequestThrottledException(AmazonException):
     """Exception for when BottlenoseAmazon has throttled a request, per:
@@ -103,14 +93,12 @@ class RequestThrottledException(AmazonException):
     def __init__(self, code=None, msg=None):
         super(RequestThrottledException, self).__init__(code, msg)
 
-
 class SimilartyLookupException(AmazonException):
     """Similarty Lookup Exception.
     """
 
     def __init__(self, code=None, msg=None):
         super(SimilartyLookupException, self).__init__(code, msg)
-
 
 class BrowseNodeLookupException(AmazonException):
     """Browse Node Lookup Exception.
@@ -119,23 +107,17 @@ class BrowseNodeLookupException(AmazonException):
     def __init__(self, code=None, msg=None):
         super(BrowseNodeLookupException, self).__init__(code, msg)
 
-
 class AmazonAPI(object):
     """
     Used to call Amazon API
     """
     # https://kdp.amazon.com/help?topicId=A1CT8LK6UW2FXJ
-    AMAZON_DOMAINS = {u'CA': u'ca', u'DE': u'de', u'ES': u'es', u'FR': u'fr', u'IN': u'in', u'IT': u'it',
-                      u'JP': u'co.jp', u'UK': u'co.uk', u'US': u'com', u'CN': u'cn'}
-
+    AMAZON_DOMAINS = {u'CA': u'ca', u'DE': u'de', u'ES': u'es', u'FR': u'fr', u'IN': u'in', u'IT': u'it', u'JP': u'co.jp', u'UK': u'co.uk', u'US': u'com', u'CN': u'cn'}
     AMAZON_ASSOCIATES_BASE_URL = u'http://www.amazon.{domain}/dp/'
 
     # noinspection PyTypeChecker
-    def __init__(self, aws_key=os.environ.get(u'AWS_ACCESS_KEY_ID'),
-                 aws_secret=os.environ.get(u'AWS_SECRET_ACCESS_KEY'),
-                 aws_associate_tag=os.environ.get(u'AWS_ASSOCIATE_TAG'), MaxQPS=None, Timeout=None, CacheReader=None,
-                 CacheWriter=None,
-                 **kwargs):
+    def __init__(self, aws_key=os.environ.get(u'AWS_ACCESS_KEY_ID'), aws_secret=os.environ.get(u'AWS_SECRET_ACCESS_KEY'), aws_associate_tag=os.environ.get(u'AWS_ASSOCIATE_TAG'),
+                 MaxQPS=None, Timeout=None, CacheReader=None, CacheWriter=None, **kwargs):
         # type: (unicode, unicode, unicode, float, int, object, object, dict) -> AmazonAPI
         """Initialize an BottlenoseAmazon API Proxy.
 
@@ -177,10 +159,8 @@ class AmazonAPI(object):
             CacheReader, and the (unparsed) API response.
             Defaults to None.
         """
-        kwargs.update(
-            {u'MaxQPS': MaxQPS, u'Timeout': Timeout, u'CacheReader': CacheReader, u'CacheWriter': CacheWriter})
-        self.api = BottlenoseAmazon(AWSAccessKeyId=aws_key, AWSSecretAccessKey=aws_secret,
-                                    AssociateTag=aws_associate_tag, **kwargs)
+        kwargs.update({u'MaxQPS': MaxQPS, u'Timeout': Timeout, u'CacheReader': CacheReader, u'CacheWriter': CacheWriter})
+        self.api = BottlenoseAmazon(AWSAccessKeyId=aws_key, AWSSecretAccessKey=aws_secret, AssociateTag=aws_associate_tag, **kwargs)
 
     def item_lookup(self, ItemId, IdType=u'ASIN', ResponseGroup=u'Large', **kwargs):
         # type: (unicode, unicode, unicode, dict) -> list(AmazonProduct)
@@ -190,18 +170,8 @@ class AmazonAPI(object):
         :param ResponseGroup: Response group
         :return:List[AmazonProduct]:List of Amazon Products
         """
-        kwargs.update({u'ItemId': unicode(ItemId), u'IdType': unicode(IdType), u'ResponseGroup': unicode(ResponseGroup),
-                       u'Operation': u'ItemLookup'})
-        response = self.api.call_api(**kwargs)
-        root = objectify.fromstring(response)
-        if root.Items.Request.IsValid == u'False':
-            code = root.Items.Request.Errors.Error.Code
-            msg = root.Items.Request.Errors.Error.Message
-            raise LookupException(code, msg)
-        if not hasattr(root.Items, u'Item'):
-            raise AsinNotFoundException(code=20, msg=u'ASIN(s) not found: \'{0}\''.format(
-                etree.tostring(root, pretty_print=True)))
-        return [AmazonProduct(item) for item in root.Items.Item]
+        kwargs.update({u'ItemId': unicode(ItemId), u'IdType': unicode(IdType), u'ResponseGroup': unicode(ResponseGroup), u'Operation': u'ItemLookup'})
+        return self._search(**kwargs)
 
     def item_search(self, ResponseGroup=u'Large', **kwargs):
         # type: (unicode, dict) -> list[AmazonProduct]
@@ -212,16 +182,22 @@ class AmazonAPI(object):
         :return:
         """
         kwargs.update({u'Operation': u'ItemSearch', u'ResponseGroup': unicode(ResponseGroup)})
+        return self._search(**kwargs)
+
+    def _search(self, **kwargs):
         response = self.api.call_api(**kwargs)
         root = objectify.fromstring(response)
         if root.Items.Request.IsValid == u'False':
             code = root.Items.Request.Errors.Error.Code
             msg = root.Items.Request.Errors.Error.Message
             raise SearchException(code, msg)
-        if not hasattr(root.Items, u'Item'):
-            raise SearchException(code=1, msg=u'No item found in tree')
-        return [AmazonProduct(item) for item in root.Items.Item]
-
+        elif not hasattr(root.Items, u'Item'):
+            code = root.Items.Request.Errors.Error.Code
+            msg = root.Items.Request.Errors.Error.Message
+            raise SearchException(code, msg)
+        else:
+            # noinspection PyUnresolvedReferences
+            return [AmazonProduct(item) for item in root.Items.Item]
 
 class _LXMLWrapper(object):
     def __init__(self, parsed_response):
@@ -295,84 +271,6 @@ class _LXMLWrapper(object):
 
         return value
 
-
-class _AmazonSearch(object):
-    """ BottlenoseAmazon Search.
-
-    A class providing an iterable over amazon search results.
-    """
-
-    def __init__(self, api, **kwargs):
-        # type: (AmazonAPI, dict) -> None
-        """Initialise
-
-        Initialise a search
-
-        :param api:
-            An instance of :class:`~.bottlenose.BottlenoseAmazon`.
-        :param aws_associate_tag:
-            An string representing an BottlenoseAmazon Associates tag.
-        """
-        self.kwargs = kwargs
-        self.current_page = 0
-        self.is_last_page = False
-        self.api = api
-
-    def __iter__(self):
-        # type: () -> AmazonProduct
-        """Iterate.
-
-        A generator which iterate over all paginated results
-        returning :class:`~.AmazonProduct` for each item.
-
-        :return:
-            Yields a :class:`~.AmazonProduct` for each result item.
-        """
-        for page in self.iterate_pages():
-            for item in getattr(page.Items, u'Item', []):
-                yield AmazonProduct(item=item)
-
-    def iterate_pages(self):
-        """Iterate Pages.
-
-        A generator which iterates over all pages.
-        Keep in mind that BottlenoseAmazon limits the number of pages it makes available.
-
-        :return:
-            Yields lxml root elements.
-        """
-        try:
-            while not self.is_last_page:
-                self.current_page += 1
-                yield self._query(ItemPage=self.current_page, **self.kwargs)
-        except NoMorePagesException:
-            pass
-
-    def _query(self, ResponseGroup=u'Large', **kwargs):
-        """Query.
-
-        Query BottlenoseAmazon search and check for errors.
-
-        :return:
-            An lxml root element.
-        """
-        response = self.api.item_search(ResponseGroup=ResponseGroup, **kwargs)
-        root = objectify.fromstring(response)
-        if hasattr(root.Items.Request, u'Errors') and not hasattr(root.Items, u'Item'):
-            code = root.Items.Request.Errors.Error.Code
-            msg = root.Items.Request.Errors.Error.Message
-            if code == u'AWS.ParameterOutOfRange':
-                raise NoMorePagesException(code, msg)
-            elif code == u'HTTP Error 503':
-                raise RequestThrottledException(code, msg)
-            else:
-                raise SearchException(code, msg)
-        if hasattr(root.Items, u'TotalPages'):
-            if root.Items.TotalPages == self.current_page:
-                self.is_last_page = True
-        return root
-
-
 class _AmazonBrowseNode(_LXMLWrapper):
     @property
     def id(self):
@@ -441,7 +339,6 @@ class _AmazonBrowseNode(_LXMLWrapper):
         for child in getattr(child_nodes, u'BrowseNode', []):
             children.append(_AmazonBrowseNode(child))
         return children
-
 
 class AmazonProduct(_LXMLWrapper):
     """A wrapper class for an BottlenoseAmazon product.
@@ -1189,7 +1086,7 @@ class AmazonProduct(_LXMLWrapper):
 
         return results
 
-
+# noinspection PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring
 class AmazonCart(_LXMLWrapper):
     """Wrapper around BottlenoseAmazon shopping cart.
        Allows iterating over Items in the cart.
@@ -1197,10 +1094,14 @@ class AmazonCart(_LXMLWrapper):
 
     @property
     def cart_id(self):
+        # type: () -> unicode or str
         return self._safe_get_element_text(u'Cart.CartId')
 
     @property
     def purchase_url(self):
+        """
+        :return: unicode or str: purchase_url
+        """
         # type: () -> unicode
         return self._safe_get_element_text(u'Cart.PurchaseURL')
 
@@ -1243,7 +1144,7 @@ class AmazonCart(_LXMLWrapper):
                 return item
         raise KeyError(u'no item found with CartItemId: {0}'.format(cart_item_id, ))
 
-
+# noinspection PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring,PyMissingOrEmptyDocstring
 class AmazonCartItem(_LXMLWrapper):
     @property
     def asin(self):
@@ -1279,7 +1180,6 @@ class AmazonCartItem(_LXMLWrapper):
     @property
     def currency_code(self):
         return self._safe_get_element_text(u'Price.CurrencyCode')
-
 
 class ItemNotAccessibleExeption(AmazonException):
     """This item is not accessible through the Product Advertising API.
