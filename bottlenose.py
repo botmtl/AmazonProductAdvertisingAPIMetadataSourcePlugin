@@ -54,24 +54,15 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
-
 class _BottlenoseAmazonCall(object):
-    SERVICE_DOMAINS = {'CA': ('webservices.amazon.ca', 'xml-ca.amznxslt.com'),
-                       'CN': ('webservices.amazon.cn', 'xml-cn.amznxslt.com'),
-                       'DE': ('webservices.amazon.de', 'xml-de.amznxslt.com'),
-                       'ES': ('webservices.amazon.es', 'xml-es.amznxslt.com'),
-                       'FR': ('webservices.amazon.fr', 'xml-fr.amznxslt.com'),
-                       'IN': ('webservices.amazon.in', 'xml-in.amznxslt.com'),
-                       'IT': ('webservices.amazon.it', 'xml-it.amznxslt.com'),
-                       'JP': ('webservices.amazon.co.jp', 'xml-jp.amznxslt.com'),
-                       'UK': ('webservices.amazon.co.uk', 'xml-uk.amznxslt.com'),
-                       'US': ('webservices.amazon.com', 'xml-us.amznxslt.com'),
-                       'BR': ('webservices.amazon.com.br', 'xml-br.amznxslt.com'),
-                       'MX': ('webservices.amazon.com.mx', 'xml-mx.amznxslt.com')}
+    SERVICE_DOMAINS = {'CA'                                 : ('webservices.amazon.ca', 'xml-ca.amznxslt.com'), 'CN': ('webservices.amazon.cn', 'xml-cn.amznxslt.com'), 'DE': (
+    'webservices.amazon.de', 'xml-de.amznxslt.com'), 'ES'   : ('webservices.amazon.es', 'xml-es.amznxslt.com'), 'FR': ('webservices.amazon.fr', 'xml-fr.amznxslt.com'), 'IN': (
+    'webservices.amazon.in', 'xml-in.amznxslt.com'), 'IT'   : ('webservices.amazon.it', 'xml-it.amznxslt.com'), 'JP': ('webservices.amazon.co.jp', 'xml-jp.amznxslt.com'), 'UK': (
+    'webservices.amazon.co.uk', 'xml-uk.amznxslt.com'), 'US': ('webservices.amazon.com', 'xml-us.amznxslt.com'), 'BR': ('webservices.amazon.com.br', 'xml-br.amznxslt.com'), 'MX': (
+    'webservices.amazon.com.mx', 'xml-mx.amznxslt.com')}
 
-    def __init__(self, AWSAccessKeyId, AWSSecretAccessKey, AssociateTag, Operation=None, Version="2013-08-01",
-                 Region='US', Timeout=15, MaxQPS=0.8, Parser=None, CacheReader=None, CacheWriter=None,
-                 ErrorHandler=None, _last_query_time=None):
+    def __init__(self, AWSAccessKeyId, AWSSecretAccessKey, AssociateTag, Operation=None, Version="2013-08-01", Region='US', Timeout=15, MaxQPS=0.8, Parser=None, CacheReader=None,
+                 CacheWriter=None, ErrorHandler=None, _last_query_time=None):
 
         self.AWSAccessKeyId = AWSAccessKeyId
         self.AWSSecretAccessKey = AWSSecretAccessKey
@@ -93,10 +84,8 @@ class _BottlenoseAmazonCall(object):
         try:
             return object.__getattr__(self, k)
         except:
-            return _BottlenoseAmazonCall(self.AWSAccessKeyId, self.AWSSecretAccessKey, self.AssociateTag, Operation=k,
-                                         Version=self.Version, Region=self.Region, Timeout=self.Timeout,
-                                         MaxQPS=self.MaxQPS, Parser=self.Parser,
-                                         CacheReader=self.CacheReader, CacheWriter=self.CacheWriter,
+            return _BottlenoseAmazonCall(self.AWSAccessKeyId, self.AWSSecretAccessKey, self.AssociateTag, Operation=k, Version=self.Version, Region=self.Region,
+                                         Timeout=self.Timeout, MaxQPS=self.MaxQPS, Parser=self.Parser, CacheReader=self.CacheReader, CacheWriter=self.CacheWriter,
                                          ErrorHandler=self.ErrorHandler, _last_query_time=self._last_query_time)
 
     def _maybe_parse(self, response_text):
@@ -114,8 +103,7 @@ class _BottlenoseAmazonCall(object):
 
     def _api_url(self, **kwargs):
         """The URL for making the given query against the API."""
-        query = {'Operation': self.Operation, 'Service': "AWSECommerceService",
-                 'Timestamp': time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), 'Version': self.Version, }
+        query = {'Operation': self.Operation, 'Service': "AWSECommerceService", 'Timestamp': time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), 'Version': self.Version, }
         query.update(kwargs)
 
         query['AWSAccessKeyId'] = self.AWSAccessKeyId
@@ -208,15 +196,14 @@ class _BottlenoseAmazonCall(object):
         # parse and return it
         return self._maybe_parse(response_text)
 
-
 class BottlenoseAmazon(_BottlenoseAmazonCall):
     """
     BottlenoseAmazon
     """
-    def __init__(self, AWSAccessKeyId=os.environ.get('AWS_ACCESS_KEY_ID'),
-                 AWSSecretAccessKey=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-                 AssociateTag=os.environ.get('AWS_ASSOCIATE_TAG'), Operation=None, Version="2013-08-01", Region="US",
-                 Timeout=30, MaxQPS=0.8, Parser=None, CacheReader=None, CacheWriter=None, ErrorHandler=None):
+
+    def __init__(self, AWSAccessKeyId=os.environ.get('AWS_ACCESS_KEY_ID'), AWSSecretAccessKey=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+                 AssociateTag=os.environ.get('AWS_ASSOCIATE_TAG'), Operation=None, Version="2013-08-01", Region="US", Timeout=30, MaxQPS=0.8, Parser=None, CacheReader=None,
+                 CacheWriter=None, ErrorHandler=None):
         """Create an Amazon API object.
 
         AWSAccessKeyId: Your AWS Access Key, sent with API queries. If not
@@ -260,10 +247,7 @@ class BottlenoseAmazon(_BottlenoseAmazonCall):
         """
         # Operation is for internal use by AmazonCall.__getattr__()
 
-        _BottlenoseAmazonCall.__init__(self, AWSAccessKeyId, AWSSecretAccessKey, AssociateTag, Operation,
-                                       Version=Version, Region=Region, Timeout=Timeout, MaxQPS=MaxQPS, Parser=Parser,
-                                       CacheReader=CacheReader, CacheWriter=CacheWriter,
-                                       ErrorHandler=ErrorHandler)
-
+        _BottlenoseAmazonCall.__init__(self, AWSAccessKeyId, AWSSecretAccessKey, AssociateTag, Operation, Version=Version, Region=Region, Timeout=Timeout, MaxQPS=MaxQPS,
+                                       Parser=Parser, CacheReader=CacheReader, CacheWriter=CacheWriter, ErrorHandler=ErrorHandler)
 
 __all__ = ["BottlenoseAmazon"]
