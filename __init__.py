@@ -11,7 +11,6 @@ import datetime
 import os
 import re
 from Queue import Queue
-from ast import literal_eval
 from threading import Event
 
 from calibre.constants import config_dir
@@ -21,7 +20,11 @@ from calibre.ebooks.metadata.opf2 import metadata_to_opf
 from calibre.ebooks.metadata.sources.base import Option, Source
 from calibre.gui2.metadata.config import ConfigWidget
 from calibre.utils.logging import Log, ThreadSafeLog
-from calibre.utils.titlecase import titlecase
+
+try:
+    from typing import List, AnyStr, Any, Dict, FrozenSet, Text
+except:
+    pass
 
 try:
     from calibre_plugins.AmazonProductAdvertisingAPI.amazonsimpleproductapi import AmazonAPI, AmazonProduct, AmazonException
@@ -31,12 +34,6 @@ except ImportError:
         from amazonsimpleproductapi import AmazonAPI, AmazonProduct, AmazonException
     except:
         raise ImportError("amazonsimpleproductapi is missing")
-
-try:
-    # noinspection PyUnresolvedReferences
-    from typing import Optional, unicode, Dict, List, NoReturn, Tuple, Any, AnyStr, Text
-except:
-    pass
 
 __license__ = u'GPL v3'
 __copyright__ = u'2011, Kovid Goyal kovid@kovidgoyal.net'
@@ -58,10 +55,6 @@ class AmazonProductAdvertisingAPI(Source):
 
     @property
     def touched_field(self):
-        """
-        Returns:
-            unicode: the identifier that this plugin will return (amazon, amazon_it, amazon.co.uk)
-        """
         return u'amazon' if self.prefs[u'DOMAIN'] == u'US' else u'amazon_' + self.prefs[u'DOMAIN']
 
     #: Set this to True if your plugin returns HTML formatted comments
@@ -101,16 +94,8 @@ class AmazonProductAdvertisingAPI(Source):
     options = [Option(u'AWS_ACCESS_KEY_ID', type_=u'string', default=u'', label=u'AWS_ACCESS_KEY_ID', desc=u'AWS key'),
                Option(u'AWS_SECRET_ACCESS_KEY', type_=u'string', default=u'', label=u'AWS_SECRET_ACCESS_KEY', desc=u'AWS secret'),
                Option(u'AWS_ASSOCIATE_TAG', type_=u'string', default=u'', label=u'AWS_ASSOCIATE_TAG', desc=u'Amazon-associate username'),
-               Option(u'TITLE_CLEANER', type_=u'string', default=u'', label=u'title cleaner', desc=u''),
                Option(u'DOMAIN', type_=u'choices', default=u'US', label=u'Amazon Product API domain to use:',
                       desc=u'Metadata from BottlenoseAmazon will be fetched using this country\'s BottlenoseAmazon website.', choices=AmazonAPI.AMAZON_DOMAINS),
-               Option(u'EXTRACT_SERIES_FROM_TITLE', type_=u'string',
-                      default=u'[ru"\((?P<series_name>.+?)\s+(#|book)\s*(?P<series_index>\d+)\)", ru"\[(?P<series_name>.+?)\s+(#|book)\s*(?P<series_index>\d+)\]"]',
-                      label=u'series extractor',
-                      desc=u'A list of regular expression that are tried successively to the title in an attempt to find the series_name and series_index. each regular expression must define group(series_name) and (series_index)'),
-               Option(u'LOG_FILTER_LEVEL', type_=u'choices', default=u'ERROR', label=u'LOG_FILTER_LEVEL', desc=u'',
-                      choices={Log.DEBUG: u'DEBUG', Log.INFO: u'INFO', Log.WARN: u'WARNING', Log.ERROR: u'ERROR'}),
-               Option(u'REFORMAT_AUTHOR_INITIALS', type_=u'bool', default=True, label=u'REFORMAT_AUTHOR_INITIALS', desc=u'Quality Check plugin required.'),
                Option(u'DISABLE_TITLE_AUTHOR_SEARCH', type_=u'bool', default=False, label=u'Disable title/author search:',
                       desc=u'Only books with identifiers will have a chance for to find a match with the metadata provider.'),
                Option(u'DISABLE_API_CALLS', type_=u'bool', default=False, label=u'Disable api calls:', desc=u'BATCH UPDATE.'),
@@ -128,7 +113,7 @@ class AmazonProductAdvertisingAPI(Source):
     def prefs(self):
         if self._config_obj is None:
             from calibre.utils.config import JSONConfig
-            self._config_obj = JSONConfig('metadata_sources/AmazonProductAdvertisingAPI')
+            self._config_obj = JSONConfig('plugins/AmazonProductAdvertisingAPI')
         return self._config_obj
 
     def __init__(self, *args, **kwargs):
@@ -147,8 +132,12 @@ class AmazonProductAdvertisingAPI(Source):
         #: List of metadata fields that can potentially be download by this plugin
         #: during the identify phase
         # identifier:amazon_DOMAIN will be added dynamically according to prefs
-        touched_fields = frozenset(
-            ['title', 'authors', 'identifier:amazon', 'identifier:isbn', 'rating', 'comments', 'publisher', 'pubdate', 'tags', 'series', 'identifier:' + self.touched_field])
+        if self._config_obj is None:
+            from calibre.utils.config import JSONConfig
+            self._config_obj = JSONConfig('plugins/AmazonProductAdvertisingAPI')
+        ff = ['title', 'authors', 'identifier:amazon', 'identifier:isbn', 'rating', 'comments', 'publisher', 'pubdate', 'tags', 'series']
+        ff.extend(('identifier:' + self.touched_field))
+        self.touched_fields = frozenset()
 
     def cli_main(self, args):
         # type: (List[AnyStr]) -> None
@@ -226,7 +215,7 @@ class AmazonProductAdvertisingAPI(Source):
                     elif p.asin:
                         self.write_it(p, unicode(p.asin) + u'.mi')
                     else:
-                        self.log(u"JUST LOST A RESULT")
+                        self.log.error(u"JUST LOST A RESULT")
             except AmazonException as e:
                 self.log.error("AmazonException. Code:", e.code, ' Message:', e.msg)
 
@@ -463,19 +452,31 @@ class AmazonProductAdvertisingAPI(Source):
         :param title: Text: title
         :return: Text: cleaned-up title
         """
-        try:
-            for r in literal_eval(self.prefs[u'TITLE_CLEANER']):
-                result = eval(r)
-                if result:
-                    title = result.strip()
-        except Exception:
-            self.log.exception()
+        import re
+        newtitle = re.sub(r'\[.*?\]', r'', title, flags=re.IGNORECASE)
+        newtitle = re.sub(r'^\s*|\s*$', r'', newtitle)
+        if len(newtitle) > 3:
+            title = newtitle
 
-        return titlecase(title)
+        newtitle = re.sub(r'\(.*?\)', r'', title, flags=re.IGNORECASE)
+        newtitle = re.sub('^\s*|\s*$', r'', newtitle)
+        if len(newtitle) > 3:
+            title = newtitle
+
+        newtitle = re.sub(r'\(.*?\)', r'', title, flags=re.IGNORECASE)
+        newtitle = re.sub(r'^\s*|\s*$', r'', newtitle)
+        if len(newtitle) > 3:
+            title = newtitle
+
+        title=re.sub(r'^gay\s*:|^gay romance\s*:', '', title, flags=re.IGNORECASE)
+        newtitle = re.sub(r'^(?:[^\:])+[\:].*?( romance| novel| novella| gay| story| stories| MM| M/M| manlove).*$', r'', title, flags=re.IGNORECASE)
+        newtitle = re.sub(r'^\s*|\s*$', r'', newtitle)
+        if len(newtitle) > 3:
+            title = newtitle
+        return title
 
     def _parseAuthors(self, product):
         """
-
         :param product: AmazonProductAPI
         :return: cleaned authors
         """
@@ -486,13 +487,6 @@ class AmazonProductAdvertisingAPI(Source):
             if len(product.creators) > 0:
                 creator_name, creator_role = product.creators[0]
                 authors_we_found = [creator_name]
-
-        try:
-            if self.prefs[u'REFORMAT_AUTHOR_INITIALS']:
-                authors_we_found = [re.sub(ur'^([A-Z])([A-Z]) (.+)$', ur'\1.\2. \3', a, flags=re.IGNORECASE) for a in authors_we_found]
-                authors_we_found = [re.sub(ur'^([A-Z]) (.+)$', ur'\1. \2', a, flags=re.IGNORECASE) for a in authors_we_found]
-        except Exception:
-            self.log.exception()
 
         try:
             from calibre.utils.config import JSONConfig
@@ -549,41 +543,12 @@ class AmazonProductAdvertisingAPI(Source):
 
         mi.tags = [tag.lower() for tag in tags]
 
-        series_name, series_index = self.parse_series(product.title)
-        if series_name:
-            mi.series = series_name
-            if series_index:
-                mi.series_index = series_index
-            else:
-                mi.series_index = 0
-
         self.clean_downloaded_metadata(mi)
         return mi
 
-    def parse_series(self, title):
-        # type: (Text) -> Tuple[Text or None,int or None]
-        """
-        :param title: Text
-        :return: (series_name, series_index) or (None, None)
-        """
-        try:
-            self.log.info(u'title:' + title)
-            for r in literal_eval(self.prefs[u'EXTRACT_SERIES_FROM_TITLE']):
-                matches = re.search(r, title, re.IGNORECASE)
-                if matches and matches.group(u'series_name') and matches.group(u'series_index'):
-                    series_name = matches.group(u'series_name')
-                    series_index = int(matches.group(u'series_index'))
-                    self.log(u'Found series name:' + series_name + u'.  Found series_index:' + unicode(series_index))
-                    return series_name, series_index
-
-        except Exception:
-            self.log.exception()
-
-        return None, None
-
     # noinspection PyDefaultArgument
     def download_cover(self, log, result_queue, abort, title=None, authors=[], identifiers={}, timeout=30, get_best_cover=False):
-        # type: (ThreadSafeLog, Queue, Event, Text, list(Text), dict(Text), int, bool) -> object
+        # type: (ThreadSafeLog, Queue, Event, Text, list(Text), dict(Text), int, bool) -> unicode
         """
         Download a cover and put it into result_queue. The parameters all have
         the same meaning as for :meth:`identify`. Put (self, cover_data) into
@@ -615,11 +580,11 @@ class AmazonProductAdvertisingAPI(Source):
                 cached_url = self.get_cached_cover_url(identifiers)
                 if cached_url is None:
                     return u'Download cover failed.  Could not identify.'
-            except:
-                return
+            except Exception as e:
+                return e.message
 
         if abort.is_set():
-            return
+            return "abort"
 
         br = self.browser
         self.log.info(u'Downloading cover from:', cached_url)

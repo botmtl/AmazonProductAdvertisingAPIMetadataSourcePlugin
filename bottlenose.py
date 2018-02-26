@@ -55,11 +55,11 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 class _BottlenoseAmazonCall(object):
-    SERVICE_DOMAINS = {'CA'                                 : ('webservices.amazon.ca', 'xml-ca.amznxslt.com'), 'CN': ('webservices.amazon.cn', 'xml-cn.amznxslt.com'), 'DE': (
-    'webservices.amazon.de', 'xml-de.amznxslt.com'), 'ES'   : ('webservices.amazon.es', 'xml-es.amznxslt.com'), 'FR': ('webservices.amazon.fr', 'xml-fr.amznxslt.com'), 'IN': (
-    'webservices.amazon.in', 'xml-in.amznxslt.com'), 'IT'   : ('webservices.amazon.it', 'xml-it.amznxslt.com'), 'JP': ('webservices.amazon.co.jp', 'xml-jp.amznxslt.com'), 'UK': (
-    'webservices.amazon.co.uk', 'xml-uk.amznxslt.com'), 'US': ('webservices.amazon.com', 'xml-us.amznxslt.com'), 'BR': ('webservices.amazon.com.br', 'xml-br.amznxslt.com'), 'MX': (
-    'webservices.amazon.com.mx', 'xml-mx.amznxslt.com')}
+    SERVICE_DOMAINS = {'CA'                                     : ('webservices.amazon.ca', 'xml-ca.amznxslt.com'), 'CN': ('webservices.amazon.cn', 'xml-cn.amznxslt.com'), 'DE': (
+        'webservices.amazon.de', 'xml-de.amznxslt.com'), 'ES'   : ('webservices.amazon.es', 'xml-es.amznxslt.com'), 'FR': ('webservices.amazon.fr', 'xml-fr.amznxslt.com'), 'IN': (
+        'webservices.amazon.in', 'xml-in.amznxslt.com'), 'IT'   : ('webservices.amazon.it', 'xml-it.amznxslt.com'), 'JP': (
+    'webservices.amazon.co.jp', 'xml-jp.amznxslt.com'), 'UK'    : ('webservices.amazon.co.uk', 'xml-uk.amznxslt.com'), 'US': (
+    'webservices.amazon.com', 'xml-us.amznxslt.com'), 'BR'      : ('webservices.amazon.com.br', 'xml-br.amznxslt.com'), 'MX': ('webservices.amazon.com.mx', 'xml-mx.amznxslt.com')}
 
     def __init__(self, AWSAccessKeyId, AWSSecretAccessKey, AssociateTag, Operation=None, Version="2013-08-01", Region='US', Timeout=15, MaxQPS=0.8, Parser=None, CacheReader=None,
                  CacheWriter=None, ErrorHandler=None, _last_query_time=None):
